@@ -46,8 +46,11 @@ This gives the model the context it needs for personalized, relevant responses w
 ### More Difficult
 - **Requires Internet Connection** — The AI assistant will not work offline. This is acceptable since it is an advisory feature; core expense tracking remains fully functional offline via SQLite.
 - **Prompt Engineering Required** — To get accurate, relevant responses, the context sent with each message must be carefully structured. Poorly structured prompts will produce generic or unhelpful answers.
-- **API Key Security** — The Gemini API key must **never** be hardcoded into the app or committed to the repository. It must be managed through environment variables and kept out of version control.
+- **API Key Security** — The Gemini API key must **never** be hardcoded into the app or committed to the repository. See `handle-api-key-with-user-provided-credentials.md` for the full decision on how API keys are managed.
 - **Data Privacy Consideration** — User financial data is sent to an external API. Users should be made aware of this. Where possible, only aggregated summaries should be sent rather than raw transaction records.
 
 ## Resolution
 We chose solutions appropriate for a course-level project and avoided backend or enterprise-level complexity.
+
+## Related Decisions
+- See `handle-api-key-with-user-provided-credentials.md` for the decision on how the Gemini API key is obtained, stored, and managed at runtime.
