@@ -1,79 +1,94 @@
 import { Ionicons } from "@expo/vector-icons";
-import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
+  const todayLabel = new Date()
+    .toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+    })
+    .replace("/", "-");
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-
-        tabBarActiveTintColor: "#ff5a5f", // red when selected
-        tabBarInactiveTintColor: "#b5b5b5", // grey when not
-
+        tabBarActiveTintColor: "#00D9FF",
+        tabBarInactiveTintColor: "#A7B1C2",
         tabBarStyle: {
+          backgroundColor: "#081826",
+          borderTopWidth: 0,
           height: 78,
           paddingTop: 8,
-          paddingBottom: 18,
-          borderTopWidth: 1,
-          borderTopColor: "#eee",
-          backgroundColor: "#fff",
+          paddingBottom: 10,
         },
-
-        tabBarItemStyle: {
-          paddingTop: 0,
-          paddingBottom: 12,
-        },
-
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 2,
         },
       }}
     >
+      {/* 1️⃣ FIRST TAB - RECORD / DATE */}
       <Tabs.Screen
         name="index"
         options={{
-          title: new Date()
-            .toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
-            .replace("/", "-"),
-
+          title: todayLabel,
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="book" size={24} color={color} />
+            <MaterialCommunityIcons
+              name="calendar-month-outline"
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
 
+      {/* 2️⃣ SECOND TAB - STATS ✅ */}
       <Tabs.Screen
         name="stats"
         options={{
           title: "Stats",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="bar-chart-outline" size={22} color={color} />
+            <Ionicons name="stats-chart" size={24} color={color} />
           ),
         }}
       />
 
+      {/* 3️⃣ THIRD TAB - AI CHAT */}
+      <Tabs.Screen
+        name="ai-chat"
+        options={{
+          title: "AI Chat",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="chatbox-outline" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 4️⃣ FOURTH TAB - ACCOUNTS */}
       <Tabs.Screen
         name="accounts"
         options={{
           title: "Accounts",
           tabBarIcon: ({ color }) => (
-            <FontAwesome6 name="coins" size={22} color={color} />
+            <MaterialCommunityIcons
+              name="wallet-outline"
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
 
+      {/* 5️⃣ FIFTH TAB - MORE */}
       <Tabs.Screen
         name="more"
         options={{
           title: "More",
           tabBarIcon: ({ color }) => (
-            <Ionicons
-              name="ellipsis-horizontal-outline"
-              size={22}
-              color={color}
-            />
+            <Ionicons name="ellipsis-horizontal" size={24} color={color} />
           ),
         }}
       />

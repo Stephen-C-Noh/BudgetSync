@@ -1,11 +1,11 @@
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
 
-export default function RecordScreen() {
+export default function AccountsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Record Screen</Text>
-        <Text style={styles.subtitle}>Add your transaction record page here.</Text>
+        <Text style={styles.title}>Accounts</Text>
+        <Text style={styles.subtitle}>Your accounts page goes here.</Text>
       </View>
     </SafeAreaView>
   );
@@ -20,7 +20,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
   },
   title: {
     color: "#FFFFFF",
