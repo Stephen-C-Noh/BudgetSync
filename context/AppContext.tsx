@@ -1,13 +1,31 @@
-import { initializeDatabase } from "@/lib/db";
 import {
-    Account,
-    BudgetGoal,
-    Category,
-    Setting,
-    Transaction,
-    UserProfile,
+  deleteCategory as dbDeleteCategory,
+  deleteBudgetGoal as dbDeleteBudgetGoal,
+  deleteTransaction as dbDeleteTransaction,
+  getAccounts,
+  getBudgetGoals,
+  getCategories,
+  getSettings,
+  getTransactions,
+  getUserProfile,
+  initializeDatabase,
+  insertAccount,
+  insertBudgetGoal,
+  insertCategory,
+  insertTransaction,
+  updateAccountBalance,
+  upsertSetting,
+  upsertUserProfile,
+} from "@/lib/db";
+import {
+  Account,
+  BudgetGoal,
+  Category,
+  Setting,
+  Transaction,
+  UserProfile,
 } from "@/lib/types";
-import React, { createContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface AppContextType {
   accounts: Account[];
@@ -16,19 +34,22 @@ interface AppContextType {
   budgetGoals: BudgetGoal[];
   userProfile: UserProfile | null;
   settings: Setting[];
+  isLoading: boolean;
 }
 
 interface AppActionsType {
-  // Define actions here, e.g.:
-  addAccount: (account: Account) => void;
-  updateUserProfile: (profile: UserProfile) => void;
-  addTransaction: (transaction: Transaction) => void;
-  updateSetting: (setting: Setting) => void;
-  // Add more actions as needed
+  addAccount: (account: Account) => Promise<void>;
+  addTransaction: (transaction: Transaction) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  addCategory: (category: Category) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+  addBudgetGoal: (goal: BudgetGoal) => Promise<void>;
+  deleteBudgetGoal: (id: string) => Promise<void>;
+  updateUserProfile: (profile: UserProfile) => Promise<void>;
+  updateSetting: (key: string, value: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
-
 const AppActionsContext = createContext<AppActionsType | null>(null);
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
@@ -38,47 +59,118 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [budgetGoals, setBudgetGoals] = useState<BudgetGoal[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [settings, setSettings] = useState<Setting[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function initialize() {
       await initializeDatabase();
+      const [accs, cats, txs, goals, profile, sets] = await Promise.all([
+        getAccounts(),
+        getCategories(),
+        getTransactions(),
+        getBudgetGoals(),
+        getUserProfile(),
+        getSettings(),
+      ]);
+      setAccounts(accs);
+      setCategories(cats);
+      setTransactions(txs);
+      setBudgetGoals(goals);
+      setUserProfile(profile);
+      setSettings(sets);
+      setIsLoading(false);
     }
     initialize();
   }, []);
 
-  const addAccount = (account: Account) => {
-    // Implement logic to add account to database and update state
+  const addAccount = async (account: Account) => {
+    await insertAccount(account);
+    setAccounts((prev) => [...prev, account]);
   };
 
-  const updateUserProfile = (profile: UserProfile) => {
-    // Implement logic to update user profile in database and state
+  const addTransaction = async (transaction: Transaction) => {
+    await insertTransaction(transaction);
+    // Update account balance
+    const account = accounts.find((a) => a.id === transaction.account_id);
+    if (account) {
+      const delta = transaction.type === "income" ? transaction.amount : -transaction.amount;
+      const newBalance = account.balance + delta;
+      await updateAccountBalance(account.id, newBalance);
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, balance: newBalance } : a))
+      );
+    }
+    setTransactions((prev) => [transaction, ...prev]);
   };
 
-  const addTransaction = (transaction: Transaction) => {
-    // Implement logic to add transaction to database and update state
+  const deleteTransaction = async (id: string) => {
+    const tx = transactions.find((t) => t.id === id);
+    if (tx) {
+      // Reverse the balance effect
+      const account = accounts.find((a) => a.id === tx.account_id);
+      if (account) {
+        const delta = tx.type === "income" ? -tx.amount : tx.amount;
+        const newBalance = account.balance + delta;
+        await updateAccountBalance(account.id, newBalance);
+        setAccounts((prev) =>
+          prev.map((a) => (a.id === account.id ? { ...a, balance: newBalance } : a))
+        );
+      }
+    }
+    await dbDeleteTransaction(id);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
-  const updateSetting = (setting: Setting) => {
-    // Implement logic to update setting in database and state
+
+  const addCategory = async (category: Category) => {
+    await insertCategory(category);
+    setCategories((prev) => [...prev, category]);
+  };
+
+  const deleteCategory = async (id: string) => {
+    await dbDeleteCategory(id);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const addBudgetGoal = async (goal: BudgetGoal) => {
+    await insertBudgetGoal(goal);
+    setBudgetGoals((prev) => [...prev, goal]);
+  };
+
+  const deleteBudgetGoal = async (id: string) => {
+    await dbDeleteBudgetGoal(id);
+    setBudgetGoals((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const updateUserProfile = async (profile: UserProfile) => {
+    await upsertUserProfile(profile);
+    setUserProfile(profile);
+  };
+
+  const updateSetting = async (key: string, value: string) => {
+    await upsertSetting(key, value);
+    setSettings((prev) => {
+      const exists = prev.find((s) => s.key === key);
+      if (exists) return prev.map((s) => (s.key === key ? { key, value } : s));
+      return [...prev, { key, value }];
+    });
   };
 
   return (
     <AppActionsContext.Provider
       value={{
         addAccount,
-        updateUserProfile,
         addTransaction,
+        deleteTransaction,
+        addCategory,
+        deleteCategory,
+        addBudgetGoal,
+        deleteBudgetGoal,
+        updateUserProfile,
         updateSetting,
       }}
     >
       <AppContext.Provider
-        value={{
-          accounts,
-          categories,
-          transactions,
-          budgetGoals,
-          userProfile,
-          settings,
-        }}
+        value={{ accounts, categories, transactions, budgetGoals, userProfile, settings, isLoading }}
       >
         {children}
       </AppContext.Provider>
@@ -87,49 +179,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 export function useAppState() {
-  const context = React.useContext(AppContext);
-  if (!context) {
-    throw new Error("useAppState must be used within an AppProvider");
-  }
+  const context = useContext(AppContext);
+  if (!context) throw new Error("useAppState must be used within AppProvider");
   return context;
 }
 
 export function useAppActions() {
-  const context = React.useContext(AppActionsContext);
-  if (!context) {
-    throw new Error("useAppActions must be used within an AppProvider");
-  }
+  const context = useContext(AppActionsContext);
+  if (!context) throw new Error("useAppActions must be used within AppProvider");
   return context;
 }
-
-// Comment from instructor:
-// There is 'UseMemo'.
-// to memoize the context value if needed,
-// especially if you have actions that update
-// the state and you want to prevent unnecessary
-// re-renders of consuming components.
-
-// My question:
-// How do I use 'UseMemo' in this context?
-// Is it necessary/recommended to use 'UseMemo' here? If so, how would I implement it?
-
-// Regarding the use of 'useMemo':
-// It can be beneficial to use 'useMemo' to memoize the context value,
-// especially if the actions or state updates cause re-renders of consuming components.
-// This can help optimize performance by preventing unnecessary re-renders
-// when the context value changes.
-
-// To implement 'useMemo', you can wrap the context value in a 'useMemo' hook like this:
-
-// const memoizedValue = useMemo(() => ({
-//   accounts,
-//   categories,
-//   transactions,
-//   budgetGoals,
-//   userProfile,
-//   settings,
-// }), [accounts, categories, transactions, budgetGoals, userProfile, settings]);
-
-// Then, you would pass 'memoizedValue' to the provider instead of the raw state values.
-// This way, the context value will only change when one of the dependencies changes,
-// preventing unnecessary re-renders of consuming components that rely on this context.

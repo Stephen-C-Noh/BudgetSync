@@ -22,13 +22,10 @@ interface Transaction {
   category_id: string;
   type: "income" | "expense";
   amount: number;
+  note?: string;
   date: string;
   created_at: string;
   synced: 0 | 1;
-  description?: string;
-  // How do I handle:
-  // FOREIGN KEY (account_id) REFERENCES accounts(id),
-  // FOREIGN KEY (category_id) REFERENCES categories(id)
 }
 
 interface BudgetGoal {
@@ -44,6 +41,7 @@ interface UserProfile {
   name: string;
   email: string;
   currency: string;
+  language: string;
 }
 
 interface Setting {
@@ -52,6 +50,5 @@ interface Setting {
 }
 
 export type {
-    Account, BudgetGoal, Category, Setting, Transaction, UserProfile
+  Account, BudgetGoal, Category, Setting, Transaction, UserProfile
 };
-
