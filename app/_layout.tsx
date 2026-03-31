@@ -36,7 +36,7 @@ export default function TabsLayout() {
         options={{
           title: new Date()
             .toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
-            .replace("/", "-"),
+            .replace(/\//g, "-"),
 
           tabBarIcon: ({ color }) => (
             <FontAwesome5 name="book" size={24} color={color} />
