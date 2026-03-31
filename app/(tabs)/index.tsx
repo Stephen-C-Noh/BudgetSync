@@ -1,7 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAppState } from "@/context/AppContext";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,21 +14,56 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const VIEW_TABS = ["Daily", "Calendar", "Monthly", "Summary", "Description"];
 
-const RECENT_TRANSACTIONS = [
-  { id: "1", icon: "🛒", name: "Groceries", time: "09:30 AM", amount: -85.50, category: "Groceries" },
-  { id: "2", icon: "💰", name: "Salary", time: "08:00 AM", amount: 3200.00, category: "Income" },
-  { id: "3", icon: "🍽️", name: "Lunch", time: "Yesterday", amount: -24.00, category: "Dining" },
-  { id: "4", icon: "🚗", name: "Gas", time: "Yesterday", amount: -62.00, category: "Transport" },
-];
-
 export default function TodayScreen() {
   const router = useRouter();
+  const { accounts, transactions, categories, isLoading } = useAppState();
   const [activeTab, setActiveTab] = useState("Monthly");
   const [year, setYear] = useState(new Date().getFullYear());
 
   const today = new Date()
     .toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
     .replace("/", "-");
+
+  const currentMonth = new Date().getMonth(); // 0-indexed
+
+  // Total balance across all accounts
+  const totalBalance = useMemo(
+    () => accounts.reduce((sum, a) => sum + a.balance, 0),
+    [accounts]
+  );
+
+  const primaryAccount = accounts[0] ?? null;
+
+  // Category lookup map
+  const categoryMap = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories]
+  );
+
+  // Monthly income / expense for current month + year
+  const { monthlyIncome, monthlyExpense } = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    for (const tx of transactions) {
+      const d = new Date(tx.date);
+      if (d.getFullYear() === year && d.getMonth() === currentMonth) {
+        if (tx.type === "income") income += tx.amount;
+        else expense += tx.amount;
+      }
+    }
+    return { monthlyIncome: income, monthlyExpense: expense };
+  }, [transactions, year, currentMonth]);
+
+  // Recent 5 transactions
+  const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ flex: 1 }} color="#00D4FF" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -71,11 +108,17 @@ export default function TodayScreen() {
         {/* Balance card */}
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Total Balance</Text>
-          <Text style={styles.balanceAmount}>$12,450.80</Text>
-          <View style={styles.cardRow}>
-            <MaterialCommunityIcons name="credit-card-outline" size={16} color="rgba(0,0,0,0.55)" />
-            <Text style={styles.cardText}>•••• 4821  VISA</Text>
-          </View>
+          <Text style={styles.balanceAmount}>
+            ${totalBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </Text>
+          {primaryAccount && (
+            <View style={styles.cardRow}>
+              <MaterialCommunityIcons name="credit-card-outline" size={16} color="rgba(0,0,0,0.55)" />
+              <Text style={styles.cardText}>
+                {primaryAccount.last4 ? `•••• ${primaryAccount.last4}` : primaryAccount.name}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Income / Expense summary tiles */}
@@ -87,8 +130,9 @@ export default function TodayScreen() {
               </View>
               <Text style={styles.tileLabel}>Income</Text>
             </View>
-            <Text style={styles.tileAmount}>$4,200.00</Text>
-            <Text style={styles.tileChangeGreen}>+8% vs last month</Text>
+            <Text style={styles.tileAmount}>
+              ${monthlyIncome.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Text>
           </View>
 
           <View style={styles.summaryTile}>
@@ -98,8 +142,9 @@ export default function TodayScreen() {
               </View>
               <Text style={styles.tileLabel}>Expenses</Text>
             </View>
-            <Text style={styles.tileAmount}>$2,380.50</Text>
-            <Text style={styles.tileChangeRed}>+12% vs last month</Text>
+            <Text style={styles.tileAmount}>
+              ${monthlyExpense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Text>
           </View>
         </View>
 
@@ -122,22 +167,40 @@ export default function TodayScreen() {
           </TouchableOpacity>
         </View>
 
-        {RECENT_TRANSACTIONS.map((tx) => (
-          <View key={tx.id} style={styles.txRow}>
-            <View style={styles.txLeft}>
-              <View style={styles.txIconBox}>
-                <Text style={styles.txEmoji}>{tx.icon}</Text>
-              </View>
-              <View>
-                <Text style={styles.txName}>{tx.name}</Text>
-                <Text style={styles.txMeta}>{tx.time} · {tx.category}</Text>
-              </View>
-            </View>
-            <Text style={[styles.txAmount, tx.amount < 0 ? styles.expenseColor : styles.incomeColor]}>
-              {tx.amount < 0 ? "-" : "+"}${Math.abs(tx.amount).toFixed(2)}
-            </Text>
+        {recentTransactions.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No transactions yet. Add one above!</Text>
           </View>
-        ))}
+        ) : (
+          recentTransactions.map((tx) => {
+            const cat = categoryMap.get(tx.category_id);
+            const timeLabel = (() => {
+              const txDate = new Date(tx.date);
+              const now = new Date();
+              const diffDays = Math.floor((now.getTime() - txDate.getTime()) / 86400000);
+              if (diffDays === 0) return new Date(tx.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+              if (diffDays === 1) return "Yesterday";
+              return txDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            })();
+
+            return (
+              <View key={tx.id} style={styles.txRow}>
+                <View style={styles.txLeft}>
+                  <View style={styles.txIconBox}>
+                    <Text style={styles.txEmoji}>{cat?.icon ?? "💳"}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.txName}>{tx.note || cat?.name || "Transaction"}</Text>
+                    <Text style={styles.txMeta}>{timeLabel} · {cat?.name ?? "—"}</Text>
+                  </View>
+                </View>
+                <Text style={[styles.txAmount, tx.type === "expense" ? styles.expenseColor : styles.incomeColor]}>
+                  {tx.type === "expense" ? "-" : "+"}${tx.amount.toFixed(2)}
+                </Text>
+              </View>
+            );
+          })
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -189,8 +252,6 @@ const styles = StyleSheet.create({
   tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
   tileLabel: { color: "#7A869A", fontSize: 13, fontWeight: "500" },
   tileAmount: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 4 },
-  tileChangeGreen: { color: "#00C853", fontSize: 11, fontWeight: "600" },
-  tileChangeRed: { color: "#FF3B30", fontSize: 11, fontWeight: "600" },
 
   sectionLabel: { color: "#7A869A", fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12 },
   sectionHeader: {
@@ -212,6 +273,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   addButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
+
+  emptyState: {
+    backgroundColor: "#1C252E",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+  },
+  emptyText: { color: "#7A869A", fontSize: 14 },
 
   txRow: {
     flexDirection: "row",

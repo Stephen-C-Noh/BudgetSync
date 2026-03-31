@@ -1,7 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useAppActions, useAppState } from "@/context/AppContext";
+import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,31 +14,57 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const EXPENSE_CATEGORIES = [
-  { id: "1", icon: "🍽️", name: "Food & Dining" },
-  { id: "2", icon: "🛍️", name: "Shopping" },
-  { id: "3", icon: "🚗", name: "Transport" },
-  { id: "4", icon: "🏠", name: "Rent" },
-  { id: "5", icon: "🎬", name: "Entertainment" },
-  { id: "6", icon: "💡", name: "Utilities" },
-];
-
-const INCOME_CATEGORIES = [
-  { id: "7", icon: "💰", name: "Salary" },
-  { id: "8", icon: "📈", name: "Investment" },
-  { id: "9", icon: "🎁", name: "Bonus" },
-  { id: "10", icon: "🧑‍💻", name: "Freelance" },
-];
-
 export default function AddTransactionScreen() {
   const router = useRouter();
+  const { categories, accounts } = useAppState();
+  const { addTransaction } = useAppActions();
+
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("0.00");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
-  const categories = type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const filteredCategories = categories.filter((c) => c.type === type);
+  const primaryAccount = accounts[0] ?? null;
+
+  function handleTypeChange(newType: "expense" | "income") {
+    setType(newType);
+    setSelectedCategoryId(null);
+  }
+
+  async function handleSave() {
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0) {
+      Alert.alert("Invalid Amount", "Please enter an amount greater than 0.");
+      return;
+    }
+    if (!selectedCategoryId) {
+      Alert.alert("No Category", "Please select a category.");
+      return;
+    }
+    if (!primaryAccount) {
+      Alert.alert("No Account", "No account found. Please add an account first.");
+      return;
+    }
+
+    setIsSaving(true);
+    const now = new Date().toISOString();
+    await addTransaction({
+      id: Crypto.randomUUID(),
+      account_id: primaryAccount.id,
+      category_id: selectedCategoryId,
+      type,
+      amount: parsed,
+      note: note.trim() || undefined,
+      date: today,
+      created_at: now,
+      synced: 0,
+    });
+    setIsSaving(false);
+    router.back();
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -53,7 +82,7 @@ export default function AddTransactionScreen() {
         <View style={styles.toggle}>
           <TouchableOpacity
             style={[styles.toggleBtn, type === "expense" && styles.toggleActive]}
-            onPress={() => { setType("expense"); setSelectedCategory(null); }}
+            onPress={() => handleTypeChange("expense")}
           >
             <Text style={[styles.toggleText, type === "expense" && styles.toggleTextActive]}>
               Expense
@@ -61,7 +90,7 @@ export default function AddTransactionScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleBtn, type === "income" && styles.toggleActive]}
-            onPress={() => { setType("income"); setSelectedCategory(null); }}
+            onPress={() => handleTypeChange("income")}
           >
             <Text style={[styles.toggleText, type === "income" && styles.toggleTextActive]}>
               Income
@@ -84,45 +113,45 @@ export default function AddTransactionScreen() {
         {/* Category picker */}
         <Text style={styles.fieldLabel}>CATEGORY</Text>
         <View style={styles.categoryWrap}>
-          {categories.map((cat) => (
+          {filteredCategories.map((cat) => (
             <TouchableOpacity
               key={cat.id}
               style={[
                 styles.categoryPill,
-                selectedCategory === cat.id && styles.categoryPillActive,
+                selectedCategoryId === cat.id && styles.categoryPillActive,
               ]}
-              onPress={() => setSelectedCategory(cat.id)}
+              onPress={() => setSelectedCategoryId(cat.id)}
             >
               <Text style={styles.categoryIcon}>{cat.icon}</Text>
               <Text style={[
                 styles.categoryText,
-                selectedCategory === cat.id && styles.categoryTextActive,
+                selectedCategoryId === cat.id && styles.categoryTextActive,
               ]}>
                 {cat.name}
               </Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={styles.categoryPill}>
-            <Text style={styles.categoryText}>+ More</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Date */}
         <Text style={styles.fieldLabel}>DATE</Text>
-        <TouchableOpacity style={styles.fieldRow}>
+        <View style={styles.fieldRow}>
           <Ionicons name="calendar-outline" size={18} color="#7A869A" style={{ marginRight: 10 }} />
           <Text style={styles.fieldValue}>{today}</Text>
-        </TouchableOpacity>
+        </View>
 
-        {/* Account / Payment Method */}
+        {/* Account */}
         <Text style={styles.fieldLabel}>
           {type === "expense" ? "PAYMENT METHOD" : "ACCOUNT"}
         </Text>
-        <TouchableOpacity style={styles.fieldRow}>
+        <View style={styles.fieldRow}>
           <Ionicons name="wallet-outline" size={18} color="#7A869A" style={{ marginRight: 10 }} />
-          <Text style={styles.fieldValue}>Main Account  •••• 4821</Text>
-          <Ionicons name="chevron-forward" size={16} color="#7A869A" style={{ marginLeft: "auto" }} />
-        </TouchableOpacity>
+          <Text style={styles.fieldValue}>
+            {primaryAccount
+              ? `${primaryAccount.name}${primaryAccount.last4 ? `  •••• ${primaryAccount.last4}` : ""}`
+              : "No account"}
+          </Text>
+        </View>
 
         {/* Note */}
         <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
@@ -136,8 +165,15 @@ export default function AddTransactionScreen() {
         />
 
         {/* Save */}
-        <TouchableOpacity style={styles.saveBtn} onPress={() => router.back()} activeOpacity={0.85}>
-          <Text style={styles.saveBtnText}>Save Transaction →</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
+          onPress={handleSave}
+          disabled={isSaving}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.saveBtnText}>
+            {isSaving ? "Saving..." : "Save Transaction →"}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
@@ -174,12 +210,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "70%",
   },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-  },
+  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
   toggleActive: { backgroundColor: "#00D4FF" },
   toggleText: { color: "#7A869A", fontWeight: "600", fontSize: 15 },
   toggleTextActive: { color: "#0B1519", fontWeight: "700" },
