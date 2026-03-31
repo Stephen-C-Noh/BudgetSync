@@ -51,8 +51,8 @@ settings      (key, value)
 
 Seed default categories on first launch:
 
-- Expense: Food & Dining, Shopping, Transport, Rent, Entertainment
-- Income: Salary, Investment, Bonus, Rent
+- Expense: Groceries, Dining, Shopping, Transport, Rent, Entertainment, Utilities
+- Income: Salary, Investment, Bonus, Freelance
 
 ### 1.3 React Context
 
