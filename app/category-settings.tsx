@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useAppActions, useAppState } from "@/context/AppContext";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -11,33 +13,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const DEFAULT_EXPENSE_CATEGORIES = [
-  { id: "1", icon: "🛒", name: "Groceries" },
-  { id: "2", icon: "🍽️", name: "Dining" },
-  { id: "3", icon: "🛍️", name: "Shopping" },
-  { id: "4", icon: "🚗", name: "Transport" },
-  { id: "5", icon: "🏠", name: "Rent" },
-  { id: "6", icon: "🎬", name: "Entertainment" },
-  { id: "7", icon: "💡", name: "Utilities" },
-];
-
-const DEFAULT_INCOME_CATEGORIES = [
-  { id: "8", icon: "💰", name: "Salary" },
-  { id: "9", icon: "📈", name: "Investment" },
-  { id: "10", icon: "🎁", name: "Bonus" },
-  { id: "11", icon: "🧑‍💻", name: "Freelance" },
-];
-
-type CategoryItem = { id: string; icon: string; name: string };
-
 export default function CategorySettingsScreen() {
   const router = useRouter();
+  const { categories, isLoading } = useAppState();
+  const { deleteCategory } = useAppActions();
   const [activeTab, setActiveTab] = useState<"expense" | "income">("expense");
-  const [expenseCategories, setExpenseCategories] = useState<CategoryItem[]>(DEFAULT_EXPENSE_CATEGORIES);
-  const [incomeCategories, setIncomeCategories] = useState<CategoryItem[]>(DEFAULT_INCOME_CATEGORIES);
 
-  const categories = activeTab === "expense" ? expenseCategories : incomeCategories;
-  const setCategories = activeTab === "expense" ? setExpenseCategories : setIncomeCategories;
+  const displayCategories = useMemo(
+    () => categories.filter((c) => c.type === activeTab),
+    [categories, activeTab]
+  );
 
   function handleDelete(id: string) {
     Alert.alert("Delete Category", "Are you sure you want to delete this category?", [
@@ -45,9 +30,17 @@ export default function CategorySettingsScreen() {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => setCategories((prev) => prev.filter((c) => c.id !== id)),
+        onPress: () => deleteCategory(id),
       },
     ]);
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ flex: 1 }} color="#00D4FF" />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -82,30 +75,36 @@ export default function CategorySettingsScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View style={styles.card}>
-          {categories.map((cat, index) => (
-            <View key={cat.id}>
-              <View style={styles.categoryRow}>
-                <View style={styles.categoryLeft}>
-                  <View style={styles.iconBox}>
-                    <Text style={styles.catEmoji}>{cat.icon}</Text>
-                  </View>
-                  <Text style={styles.categoryName}>{cat.name}</Text>
-                </View>
-                <View style={styles.categoryActions}>
-                  <TouchableOpacity style={styles.actionBtn}>
-                    <Ionicons name="pencil-outline" size={18} color="#00D9FF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { marginLeft: 8 }]}
-                    onPress={() => handleDelete(cat.id)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#FF4D4D" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              {index < categories.length - 1 && <View style={styles.divider} />}
+          {displayCategories.length === 0 ? (
+            <View style={styles.emptyRow}>
+              <Text style={styles.emptyText}>No categories yet.</Text>
             </View>
-          ))}
+          ) : (
+            displayCategories.map((cat, index) => (
+              <View key={cat.id}>
+                <View style={styles.categoryRow}>
+                  <View style={styles.categoryLeft}>
+                    <View style={styles.iconBox}>
+                      <Text style={styles.catEmoji}>{cat.icon ?? "📦"}</Text>
+                    </View>
+                    <Text style={styles.categoryName}>{cat.name}</Text>
+                  </View>
+                  <View style={styles.categoryActions}>
+                    <TouchableOpacity style={styles.actionBtn}>
+                      <Ionicons name="pencil-outline" size={18} color="#00D9FF" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { marginLeft: 8 }]}
+                      onPress={() => handleDelete(cat.id)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FF4D4D" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {index < displayCategories.length - 1 && <View style={styles.divider} />}
+              </View>
+            ))
+          )}
         </View>
 
         <TouchableOpacity style={styles.addBtn}>
@@ -144,6 +143,9 @@ const styles = StyleSheet.create({
 
   scroll: { paddingHorizontal: 20 },
   card: { backgroundColor: "#1C252E", borderRadius: 20, overflow: "hidden", marginBottom: 16 },
+
+  emptyRow: { padding: 20, alignItems: "center" },
+  emptyText: { color: "#7A869A", fontSize: 14 },
 
   categoryRow: {
     flexDirection: "row",

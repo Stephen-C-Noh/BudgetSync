@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useAppActions, useAppState } from "@/context/AppContext";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -11,29 +13,45 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type BudgetGoalItem = {
-  id: string;
-  icon: string;
-  category: string;
-  limit: number;
-  spent: number;
-};
-
-const INITIAL_GOALS: BudgetGoalItem[] = [
-  { id: "1", icon: "🛒", category: "Groceries", limit: 400, spent: 285 },
-  { id: "2", icon: "🍽️", category: "Dining", limit: 200, spent: 165 },
-  { id: "3", icon: "🚗", category: "Transport", limit: 150, spent: 62 },
-  { id: "4", icon: "🛍️", category: "Shopping", limit: 300, spent: 320 },
-  { id: "5", icon: "🎬", category: "Entertainment", limit: 100, spent: 45 },
-  { id: "6", icon: "💡", category: "Utilities", limit: 120, spent: 98 },
-];
-
 export default function BudgetGoalsScreen() {
   const router = useRouter();
-  const [goals, setGoals] = useState<BudgetGoalItem[]>(INITIAL_GOALS);
+  const { budgetGoals, categories, transactions, isLoading } = useAppState();
+  const { deleteBudgetGoal } = useAppActions();
 
-  const totalBudget = goals.reduce((sum, g) => sum + g.limit, 0);
-  const totalSpent = goals.reduce((sum, g) => sum + g.spent, 0);
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  const categoryMap = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories]
+  );
+
+  const monthlySpentByCategory = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const tx of transactions) {
+      if (tx.type !== "expense") continue;
+      const d = new Date(tx.date);
+      if (d.getFullYear() !== currentYear || d.getMonth() !== currentMonth) continue;
+      map[tx.category_id] = (map[tx.category_id] ?? 0) + tx.amount;
+    }
+    return map;
+  }, [transactions, currentYear, currentMonth]);
+
+  const monthlyGoals = useMemo(
+    () => budgetGoals.filter((g) => g.period === "monthly"),
+    [budgetGoals]
+  );
+
+  const totalBudget = useMemo(
+    () => monthlyGoals.reduce((sum, g) => sum + g.limit_amount, 0),
+    [monthlyGoals]
+  );
+
+  const totalSpent = useMemo(
+    () => monthlyGoals.reduce((sum, g) => sum + (monthlySpentByCategory[g.category_id] ?? 0), 0),
+    [monthlyGoals, monthlySpentByCategory]
+  );
 
   function handleDelete(id: string) {
     Alert.alert("Remove Goal", "Remove this budget goal?", [
@@ -41,9 +59,17 @@ export default function BudgetGoalsScreen() {
       {
         text: "Remove",
         style: "destructive",
-        onPress: () => setGoals((prev) => prev.filter((g) => g.id !== id)),
+        onPress: () => deleteBudgetGoal(id),
       },
     ]);
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ flex: 1 }} color="#00D4FF" />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -61,69 +87,83 @@ export default function BudgetGoalsScreen() {
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Monthly Budget</Text>
           <Text style={styles.summaryTotal}>${totalBudget.toLocaleString()}</Text>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${Math.min((totalSpent / totalBudget) * 100, 100)}%` as any,
-                  backgroundColor: totalSpent > totalBudget ? "#FF3B30" : "#00D4FF",
-                },
-              ]}
-            />
-          </View>
-          <View style={styles.summaryFooter}>
-            <Text style={styles.summaryMuted}>Spent: ${totalSpent.toLocaleString()}</Text>
-            <Text style={styles.summaryMuted}>
-              Remaining: ${Math.max(totalBudget - totalSpent, 0).toLocaleString()}
-            </Text>
-          </View>
+          {totalBudget > 0 ? (
+            <>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min((totalSpent / totalBudget) * 100, 100)}%` as any,
+                      backgroundColor: totalSpent > totalBudget ? "#FF3B30" : "#00D4FF",
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.summaryFooter}>
+                <Text style={styles.summaryMuted}>Spent: ${totalSpent.toLocaleString()}</Text>
+                <Text style={styles.summaryMuted}>
+                  Remaining: ${Math.max(totalBudget - totalSpent, 0).toLocaleString()}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.summaryMuted}>No monthly goals set</Text>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>CATEGORY GOALS</Text>
 
         <View style={styles.card}>
-          {goals.map((goal, index) => {
-            const pct = Math.min((goal.spent / goal.limit) * 100, 100);
-            const isOver = goal.spent > goal.limit;
+          {monthlyGoals.length === 0 ? (
+            <View style={styles.emptyRow}>
+              <Text style={styles.emptyText}>No budget goals yet.</Text>
+            </View>
+          ) : (
+            monthlyGoals.map((goal, index) => {
+              const cat = categoryMap.get(goal.category_id);
+              const spent = monthlySpentByCategory[goal.category_id] ?? 0;
+              const pct = Math.min((spent / goal.limit_amount) * 100, 100);
+              const isOver = spent > goal.limit_amount;
 
-            return (
-              <View key={goal.id}>
-                <View style={styles.goalRow}>
-                  <View style={styles.goalLeft}>
-                    <View style={styles.iconBox}>
-                      <Text style={styles.goalEmoji}>{goal.icon}</Text>
-                    </View>
-                    <View style={styles.goalInfo}>
-                      <View style={styles.goalTitleRow}>
-                        <Text style={styles.goalCategory}>{goal.category}</Text>
-                        {isOver && (
-                          <View style={styles.overBadge}>
-                            <Text style={styles.overBadgeText}>OVER</Text>
-                          </View>
-                        )}
+              return (
+                <View key={goal.id}>
+                  <View style={styles.goalRow}>
+                    <View style={styles.goalLeft}>
+                      <View style={styles.iconBox}>
+                        <Text style={styles.goalEmoji}>{cat?.icon ?? "📦"}</Text>
                       </View>
-                      <View style={styles.goalBarTrack}>
-                        <View
-                          style={[
-                            styles.goalBarFill,
-                            { width: `${pct}%` as any, backgroundColor: isOver ? "#FF3B30" : "#00D4FF" },
-                          ]}
-                        />
+                      <View style={styles.goalInfo}>
+                        <View style={styles.goalTitleRow}>
+                          <Text style={styles.goalCategory}>{cat?.name ?? "Unknown"}</Text>
+                          {isOver && (
+                            <View style={styles.overBadge}>
+                              <Text style={styles.overBadgeText}>OVER</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.goalBarTrack}>
+                          <View
+                            style={[
+                              styles.goalBarFill,
+                              { width: `${pct}%` as any, backgroundColor: isOver ? "#FF3B30" : "#00D4FF" },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.goalAmounts}>
+                          ${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / ${goal.limit_amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
                       </View>
-                      <Text style={styles.goalAmounts}>
-                        ${goal.spent} / ${goal.limit}
-                      </Text>
                     </View>
+                    <TouchableOpacity onPress={() => handleDelete(goal.id)}>
+                      <Ionicons name="trash-outline" size={18} color="#FF4D4D" />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => handleDelete(goal.id)}>
-                    <Ionicons name="trash-outline" size={18} color="#FF4D4D" />
-                  </TouchableOpacity>
+                  {index < monthlyGoals.length - 1 && <View style={styles.divider} />}
                 </View>
-                {index < goals.length - 1 && <View style={styles.divider} />}
-              </View>
-            );
-          })}
+              );
+            })
+          )}
         </View>
 
         <TouchableOpacity style={styles.addBtn}>
@@ -164,6 +204,9 @@ const styles = StyleSheet.create({
   sectionLabel: { color: "#7A869A", fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12 },
 
   card: { backgroundColor: "#1C252E", borderRadius: 20, overflow: "hidden", marginBottom: 16 },
+
+  emptyRow: { padding: 20, alignItems: "center" },
+  emptyText: { color: "#7A869A", fontSize: 14 },
 
   goalRow: {
     flexDirection: "row",

@@ -1,7 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAppState } from "@/context/AppContext";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Switch,
@@ -19,8 +21,17 @@ interface MenuRowProps {
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { userProfile, isLoading } = useAppState();
   const [budgetAlerts, setBudgetAlerts] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(false);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={{ flex: 1 }} color="#00D4FF" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -46,19 +57,19 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.identityText}>
               <Text style={styles.blueLabel}>FULL NAME</Text>
-              <Text style={styles.whiteValue}>Alex Johnson</Text>
+              <Text style={styles.whiteValue}>{userProfile?.name ?? "—"}</Text>
               <View style={styles.lineDivider} />
               <Text style={[styles.blueLabel, { marginTop: 12 }]}>EMAIL ACCESS</Text>
-              <Text style={styles.whiteValue}>alex.johnson@budgetsync.io</Text>
+              <Text style={styles.whiteValue}>{userProfile?.email ?? "—"}</Text>
             </View>
           </View>
         </View>
 
         <Text style={styles.sectionTitle}>LOCALIZATION</Text>
         <View style={styles.card}>
-          <MenuRow icon="cash-outline" title="Primary Currency" subTitle="USD ($)" />
+          <MenuRow icon="cash-outline" title="Primary Currency" subTitle={userProfile?.currency ?? "USD"} />
           <View style={styles.itemDivider} />
-          <MenuRow icon="globe-outline" title="System Language" subTitle="EN-US" />
+          <MenuRow icon="globe-outline" title="System Language" subTitle={userProfile?.language ?? "EN-US"} />
         </View>
 
         <Text style={styles.sectionTitle}>ALERTS</Text>
