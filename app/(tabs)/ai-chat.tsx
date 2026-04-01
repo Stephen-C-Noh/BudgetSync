@@ -1,7 +1,17 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useAppState } from "@/context/AppContext";
 import {
+  GeminiTurn,
+  getGeminiKey,
+  saveGeminiKey,
+  sendMessage,
+  validateGeminiKey,
+} from "@/lib/gemini";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -36,153 +46,324 @@ const COLORS = {
   success: "#22D39A",
   inputPlaceholder: "#7F93A7",
   danger: "#FF4D6D",
+  cardBg: "#0E2030",
+  cardBorder: "#1A3A50",
 };
 
+type Message = {
+  id: string;
+  role: "bot" | "user";
+  text: string;
+  chips?: string[];
+};
+
+const GREETING = "Hi! I'm SyncBot, your personal finance assistant. I can see your recent transactions and spending patterns. How can I help you today?";
+const GREETING_CHIPS = ["Am I on budget?", "Where am I spending most?", "How to save more?"];
+const FOLLOW_UP_CHIPS = ["Tell me more", "Show breakdown", "Any tips?"];
+
 export default function AIChatScreen() {
-  const [message, setMessage] = useState("");
+  const { transactions, categories } = useAppState();
+
+  // Key management
+  const [keyChecked, setKeyChecked] = useState(false);
+  const [hasKey, setHasKey] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [isValidating, setIsValidating] = useState(false);
+  const [keyError, setKeyError] = useState("");
+
+  // Chat
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const geminiHistory = useRef<GeminiTurn[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    getGeminiKey().then((key) => {
+      const exists = key !== null && key.length > 0;
+      setHasKey(exists);
+      setKeyChecked(true);
+      if (exists) {
+        setMessages([
+          {
+            id: "greeting",
+            role: "bot",
+            text: GREETING,
+            chips: GREETING_CHIPS,
+          },
+        ]);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    }
+  }, [messages]);
+
+  async function handleValidateKey() {
+    const trimmed = keyInput.trim();
+    if (!trimmed) {
+      setKeyError("Please enter your API key.");
+      return;
+    }
+    setIsValidating(true);
+    setKeyError("");
+    const error = await validateGeminiKey(trimmed);
+    if (error === null) {
+      await saveGeminiKey(trimmed);
+      setHasKey(true);
+      setMessages([
+        {
+          id: "greeting",
+          role: "bot",
+          text: GREETING,
+          chips: GREETING_CHIPS,
+        },
+      ]);
+    } else {
+      setKeyError(error);
+    }
+    setIsValidating(false);
+  }
+
+  async function handleSend(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || isSending) return;
+
+    setInput("");
+    const userMsg: Message = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      text: trimmed,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsSending(true);
+
+    try {
+      const reply = await sendMessage(
+        trimmed,
+        geminiHistory.current,
+        transactions,
+        categories
+      );
+      const botMsg: Message = {
+        id: `b-${Date.now()}`,
+        role: "bot",
+        text: reply,
+        chips: FOLLOW_UP_CHIPS,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+      geminiHistory.current = [
+        ...geminiHistory.current,
+        { role: "user", parts: [{ text: trimmed }] },
+        { role: "model", parts: [{ text: reply }] },
+      ];
+    } catch (err: unknown) {
+      const isInvalidKey =
+        err instanceof Error && err.message === "INVALID_KEY";
+      const detail =
+        err instanceof Error && err.message !== "INVALID_KEY"
+          ? err.message
+          : null;
+      const errorMsg: Message = {
+        id: `e-${Date.now()}`,
+        role: "bot",
+        text: isInvalidKey
+          ? "Your API key appears to be invalid. Please disable and re-enable the AI connection in settings."
+          : `Something went wrong: ${detail ?? "unknown error"}`,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  if (!keyChecked) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator color={COLORS.accent} style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!hasKey) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>SyncBot AI</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: COLORS.mutedText }]} />
+              <Text style={styles.statusText}>SETUP REQUIRED</Text>
+            </View>
+          </View>
+          <Ionicons name="information-circle-outline" size={22} color={COLORS.iconText} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.onboardingContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.onboardingCard}>
+            <View style={styles.onboardingIcon}>
+              <MaterialCommunityIcons name="robot-outline" size={36} color={COLORS.accent} />
+            </View>
+            <Text style={styles.onboardingTitle}>Connect SyncBot AI</Text>
+            <Text style={styles.onboardingBody}>
+              SyncBot uses Google Gemini to answer questions about your finances. Your API key is stored securely on this device and never shared.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.studioLink}
+              onPress={() => Linking.openURL("https://aistudio.google.com/apikey")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="open-outline" size={14} color={COLORS.accentText} style={{ marginRight: 6 }} />
+              <Text style={styles.studioLinkText}>Get a free key at Google AI Studio</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.keyLabel}>Gemini API Key</Text>
+            <TextInput
+              style={[styles.keyInput, keyError ? styles.keyInputError : null]}
+              placeholder="AIza..."
+              placeholderTextColor={COLORS.inputPlaceholder}
+              value={keyInput}
+              onChangeText={(v) => {
+                setKeyInput(v);
+                setKeyError("");
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {keyError !== "" && (
+              <Text style={styles.keyErrorText}>{keyError}</Text>
+            )}
+
+            {isValidating ? (
+              <ActivityIndicator color={COLORS.accent} style={{ marginTop: 20 }} />
+            ) : (
+              <TouchableOpacity
+                style={styles.connectButton}
+                onPress={handleValidateKey}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.connectButtonText}>Validate & Connect</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>SyncBot AI</Text>
-
             <View style={styles.statusRow}>
               <View style={styles.statusDot} />
               <Text style={styles.statusText}>ONLINE ASSISTANT</Text>
             </View>
           </View>
-
-          <Ionicons
-            name="information-circle-outline"
-            size={22}
-            color={COLORS.iconText}
-          />
+          <Ionicons name="information-circle-outline" size={22} color={COLORS.iconText} />
         </View>
 
         <ScrollView
+          ref={scrollRef}
           style={styles.chatContainer}
           contentContainerStyle={styles.chatContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.botRow}>
-            <View style={styles.botIcon}>
-              <MaterialCommunityIcons
-                name="robot-outline"
-                size={18}
-                color={COLORS.accent}
-              />
-            </View>
+          {messages.map((msg) =>
+            msg.role === "bot" ? (
+              <View key={msg.id}>
+                <View style={styles.botRow}>
+                  <View style={styles.botIcon}>
+                    <MaterialCommunityIcons name="robot-outline" size={18} color={COLORS.accent} />
+                  </View>
+                  <View style={styles.botGroup}>
+                    <Text style={styles.senderLabel}>SYNCBOT</Text>
+                    <View style={styles.botBubble}>
+                      <Text style={styles.botText}>{msg.text}</Text>
+                    </View>
+                  </View>
+                </View>
+                {msg.chips && msg.chips.length > 0 && (
+                  <View style={styles.actionsWrap}>
+                    {msg.chips.map((chip) => (
+                      <TouchableOpacity
+                        key={chip}
+                        style={styles.actionButton}
+                        onPress={() => handleSend(chip)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.actionText}>{chip}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View key={msg.id} style={styles.userSection}>
+                <Text style={styles.userLabel}>YOU</Text>
+                <View style={styles.userRow}>
+                  <View style={styles.userBubble}>
+                    <Text style={styles.userText}>{msg.text}</Text>
+                  </View>
+                  <View style={styles.userIcon}>
+                    <Ionicons name="person-outline" size={16} color={COLORS.iconText} />
+                  </View>
+                </View>
+              </View>
+            )
+          )}
 
-            <View style={styles.botGroup}>
-              <Text style={styles.senderLabel}>SYNCBOT</Text>
-
-              <View style={styles.botBubble}>
-                <Text style={styles.botText}>
-                  Hi there! I've finished syncing your latest bank transactions.
-                  {"\n\n"}
-                  How can I help you with your finances today?
-                </Text>
+          {isSending && (
+            <View style={styles.botRow}>
+              <View style={styles.botIcon}>
+                <MaterialCommunityIcons name="robot-outline" size={18} color={COLORS.accent} />
+              </View>
+              <View style={styles.botGroup}>
+                <Text style={styles.senderLabel}>SYNCBOT</Text>
+                <View style={styles.botBubble}>
+                  <ActivityIndicator color={COLORS.accent} size="small" />
+                </View>
               </View>
             </View>
-          </View>
-
-          <View style={styles.userSection}>
-            <Text style={styles.userLabel}>YOU</Text>
-
-            <View style={styles.userRow}>
-              <View style={styles.userBubble}>
-                <Text style={styles.userText}>
-                  Am I spending too much on food?
-                </Text>
-              </View>
-
-              <View style={styles.userIcon}>
-                <Ionicons
-                  name="person-outline"
-                  size={16}
-                  color={COLORS.iconText}
-                />
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.botRow}>
-            <View style={styles.botIcon}>
-              <MaterialCommunityIcons
-                name="robot-outline"
-                size={18}
-                color={COLORS.accent}
-              />
-            </View>
-
-            <View style={styles.botGroup}>
-              <Text style={styles.senderLabel}>SYNCBOT</Text>
-
-              <View style={styles.botBubble}>
-                <Text style={styles.botText}>
-                  Analyzing your last 30 days...
-                  {"\n\n"}
-                  You've spent <Text style={styles.highlight}>$450</Text> on
-                  groceries and <Text style={styles.highlight}> $200</Text> on
-                  dining out. This is{" "}
-                  <Text style={styles.redText}>15% higher</Text> than your set
-                  budget of $565.
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.actionsWrap}>
-            <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
-              <Text style={styles.actionText}>Show breakdown</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
-              <Text style={styles.actionText}>Adjust budget</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
-              <Text style={styles.actionText}>Compare to last month</Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </ScrollView>
 
         <View style={styles.inputWrapper}>
           <View style={styles.inputBar}>
-            <TouchableOpacity activeOpacity={0.8}>
-              <Ionicons
-                name="add-circle-outline"
-                size={22}
-                color={COLORS.inputPlaceholder}
-              />
-            </TouchableOpacity>
-
             <TextInput
               style={styles.input}
               placeholder="Ask about your budget..."
               placeholderTextColor={COLORS.inputPlaceholder}
-              value={message}
-              onChangeText={setMessage}
+              value={input}
+              onChangeText={setInput}
+              onSubmitEditing={() => handleSend(input)}
+              returnKeyType="send"
+              editable={!isSending}
             />
-
-            <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
-              <Ionicons
-                name="mic-outline"
-                size={20}
-                color={COLORS.inputPlaceholder}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.sendButton} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[styles.sendButton, (!input.trim() || isSending) && styles.sendButtonDisabled]}
+              onPress={() => handleSend(input)}
+              activeOpacity={0.8}
+              disabled={!input.trim() || isSending}
+            >
               <Ionicons name="send" size={16} color={COLORS.sendIcon} />
             </TouchableOpacity>
           </View>
-
           <Text style={styles.footerText}>
             AI CAN MAKE MISTAKES. CHECK YOUR STATEMENTS FOR ACCURACY.
           </Text>
@@ -193,14 +374,8 @@ export default function AIChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.background },
 
   header: {
     flexDirection: "row",
@@ -213,16 +388,8 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
     backgroundColor: COLORS.headerBackground,
   },
-  title: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-  },
+  title: { color: COLORS.white, fontSize: 18, fontWeight: "700" },
+  statusRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
   statusDot: {
     width: 8,
     height: 8,
@@ -230,26 +397,99 @@ const styles = StyleSheet.create({
     marginRight: 6,
     backgroundColor: COLORS.success,
   },
-  statusText: {
-    color: COLORS.secondaryText,
-    fontSize: 11,
-    fontWeight: "600",
-  },
+  statusText: { color: COLORS.secondaryText, fontSize: 11, fontWeight: "600" },
 
-  chatContainer: {
-    flex: 1,
+  // Onboarding
+  onboardingContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 30,
   },
-  chatContent: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 20,
+  onboardingCard: {
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    padding: 24,
+    alignItems: "center",
   },
-
-  botRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  onboardingIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(0, 209, 255, 0.08)",
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 18,
   },
+  onboardingTitle: {
+    color: COLORS.white,
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  onboardingBody: {
+    color: COLORS.secondaryText,
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  studioLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  studioLinkText: {
+    color: COLORS.accentText,
+    fontSize: 13,
+    textDecorationLine: "underline",
+  },
+  keyLabel: {
+    color: COLORS.mutedText,
+    fontSize: 12,
+    fontWeight: "600",
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  keyInput: {
+    width: "100%",
+    backgroundColor: COLORS.inputBackground,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: COLORS.white,
+    fontSize: 14,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  keyInputError: { borderColor: COLORS.danger },
+  keyErrorText: {
+    color: COLORS.danger,
+    fontSize: 12,
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  connectButton: {
+    marginTop: 20,
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: "100%",
+    alignItems: "center",
+  },
+  connectButtonText: { color: COLORS.sendIcon, fontWeight: "700", fontSize: 15 },
+
+  // Chat
+  chatContainer: { flex: 1 },
+  chatContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 20 },
+
+  botRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 18 },
   botIcon: {
     width: 36,
     height: 36,
@@ -260,32 +500,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: COLORS.botIconBackground,
   },
-  botGroup: {
-    flex: 1,
-    maxWidth: "82%",
-  },
-  senderLabel: {
-    color: COLORS.mutedText,
-    fontSize: 10,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
+  botGroup: { flex: 1, maxWidth: "82%" },
+  senderLabel: { color: COLORS.mutedText, fontSize: 10, fontWeight: "700", marginBottom: 6 },
   botBubble: {
     backgroundColor: COLORS.botBubble,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: "center",
   },
-  botText: {
-    color: COLORS.lightText,
-    fontSize: 14,
-    lineHeight: 24,
-  },
+  botText: { color: COLORS.lightText, fontSize: 14, lineHeight: 24 },
 
-  userSection: {
-    alignItems: "flex-end",
-    marginBottom: 18,
-  },
+  userSection: { alignItems: "flex-end", marginBottom: 18 },
   userLabel: {
     color: COLORS.mutedText,
     fontSize: 10,
@@ -293,11 +520,7 @@ const styles = StyleSheet.create({
     marginRight: 44,
     marginBottom: 6,
   },
-  userRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
+  userRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
   userBubble: {
     maxWidth: "78%",
     borderRadius: 16,
@@ -305,12 +528,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: COLORS.userBubble,
   },
-  userText: {
-    color: COLORS.sendIcon,
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-  },
+  userText: { color: COLORS.sendIcon, fontSize: 14, fontWeight: "500", lineHeight: 20 },
   userIcon: {
     width: 34,
     height: 34,
@@ -321,20 +539,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.userIconBackground,
   },
 
-  highlight: {
-    color: COLORS.accentText,
-    fontWeight: "700",
-  },
-  redText: {
-    color: COLORS.danger,
-    fontWeight: "700",
-  },
-
-  actionsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 6,
-  },
+  actionsWrap: { flexDirection: "row", flexWrap: "wrap", marginTop: -8, marginBottom: 18, marginLeft: 46 },
   actionButton: {
     borderWidth: 1,
     borderColor: COLORS.accentButton,
@@ -344,12 +549,9 @@ const styles = StyleSheet.create({
     marginRight: 10,
     marginBottom: 10,
   },
-  actionText: {
-    color: COLORS.accentText,
-    fontSize: 12,
-    fontWeight: "500",
-  },
+  actionText: { color: COLORS.accentText, fontSize: 12, fontWeight: "500" },
 
+  // Input
   inputWrapper: {
     paddingHorizontal: 14,
     paddingTop: 10,
@@ -364,19 +566,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.inputBorder,
     borderRadius: 28,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: COLORS.inputBackground,
   },
-  input: {
-    flex: 1,
-    color: COLORS.white,
-    fontSize: 14,
-    marginHorizontal: 10,
-  },
-  iconButton: {
-    marginRight: 8,
-  },
+  input: { flex: 1, color: COLORS.white, fontSize: 14, marginRight: 10 },
   sendButton: {
     width: 34,
     height: 34,
@@ -385,6 +579,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: COLORS.sendButton,
   },
+  sendButtonDisabled: { opacity: 0.4 },
   footerText: {
     color: COLORS.footerText,
     fontSize: 10,
