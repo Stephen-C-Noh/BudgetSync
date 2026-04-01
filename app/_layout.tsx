@@ -33,6 +33,7 @@ function InnerLayout() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="category-settings" />
         <Stack.Screen name="budget-goals" />
+        <Stack.Screen name="set-pin" />
       </Stack>
     </AuthContext.Provider>
   );

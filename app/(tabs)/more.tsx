@@ -1,8 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { authenticate, isBiometricAvailable } from "@/lib/auth";
+import { clearPIN } from "@/lib/auth";
 import { useRouter } from "expo-router";
-import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SimpleLinkProps {
@@ -21,19 +21,12 @@ export default function MoreScreen() {
 
   async function handleBiometricsToggle(value: boolean) {
     if (value) {
-      // Confirm biometrics work before enabling
-      const available = await isBiometricAvailable();
-      if (!available) {
-        Alert.alert(
-          "Not Available",
-          "Biometric authentication is not set up on this device."
-        );
-        return;
-      }
-      const success = await authenticate("Confirm to enable biometrics");
-      if (!success) return;
+      // Enrollment handled by set-pin screen (sets PIN, tries biometrics, saves setting)
+      router.push("/set-pin");
+    } else {
+      await clearPIN();
+      await updateSetting("biometrics_enabled", "false");
     }
-    await updateSetting("biometrics_enabled", value ? "true" : "false");
   }
 
   return (
