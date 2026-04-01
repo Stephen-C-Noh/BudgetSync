@@ -1,6 +1,19 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAppActions, useAppState } from "@/context/AppContext";
+import * as Crypto from "expo-crypto";
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { MONTH_NAMES } from "@/lib/dateUtils";
 import { Account } from "@/lib/types";
 import NavRow from "@/components/shared/NavRow";
@@ -12,11 +25,29 @@ const ACCOUNT_TYPE_META: Record<string, { label: string; iconName: string; iconC
   credit_card: { label: "Credit Cards", iconName: "credit-card",    iconColor: "#FF7C7C", bgColor: "#3D242B" },
 };
 
+const ACCOUNT_TYPES: { key: Account["type"]; label: string }[] = [
+  { key: "cash",        label: "Cash" },
+  { key: "bank",        label: "Bank" },
+  { key: "credit_card", label: "Credit Card" },
+  { key: "investment",  label: "Investment" },
+];
+
 type Props = { accounts: Account[] };
 
 export default function AccountsMonthlyView({ accounts }: Props) {
+  const { addAccount } = useAppActions();
+  const { userProfile } = useAppState();
+
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [accountName, setAccountName] = useState("");
+  const [accountType, setAccountType] = useState<Account["type"]>("bank");
+  const [balanceStr, setBalanceStr] = useState("0.00");
+  const [last4, setLast4] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const { netWorth, assets, liabilities } = useMemo(() => {
     let assets = 0, liabilities = 0;
@@ -44,6 +75,43 @@ export default function AccountsMonthlyView({ accounts }: Props) {
   function nextMonth() {
     if (month === 11) { setYear((y) => y + 1); setMonth(0); }
     else setMonth((m) => m + 1);
+  }
+
+  function openModal() {
+    setAccountName("");
+    setAccountType("bank");
+    setBalanceStr("0.00");
+    setLast4("");
+    setModalVisible(true);
+  }
+
+  async function handleSave() {
+    const trimmed = accountName.trim();
+    if (!trimmed) {
+      Alert.alert("Missing Name", "Please enter an account name.");
+      return;
+    }
+    const balance = parseFloat(balanceStr);
+    if (isNaN(balance)) {
+      Alert.alert("Invalid Balance", "Please enter a valid balance.");
+      return;
+    }
+    if (last4 && !/^\d{4}$/.test(last4)) {
+      Alert.alert("Invalid Last 4", "Last 4 digits must be exactly 4 numbers.");
+      return;
+    }
+    setIsSaving(true);
+    await addAccount({
+      id: Crypto.randomUUID(),
+      name: trimmed,
+      type: accountType,
+      balance,
+      last4: last4.trim() || undefined,
+      currency: userProfile?.currency ?? "USD",
+      created_at: new Date().toISOString(),
+    });
+    setIsSaving(false);
+    setModalVisible(false);
   }
 
   return (
@@ -126,6 +194,93 @@ export default function AccountsMonthlyView({ accounts }: Props) {
           );
         })
       )}
+
+      <TouchableOpacity style={styles.addButton} onPress={openModal} activeOpacity={0.85}>
+        <Ionicons name="add-circle-outline" size={20} color="#0B1519" style={{ marginRight: 8 }} />
+        <Text style={styles.addButtonText}>+ Add Account</Text>
+      </TouchableOpacity>
+
+      {/* Add Account Modal */}
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Account</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#7A869A" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Account Name */}
+              <Text style={styles.fieldLabel}>ACCOUNT NAME</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. Chase Checking"
+                placeholderTextColor="#3A4A5A"
+                value={accountName}
+                onChangeText={setAccountName}
+              />
+
+              {/* Account Type */}
+              <Text style={styles.fieldLabel}>ACCOUNT TYPE</Text>
+              <View style={styles.typeRow}>
+                {ACCOUNT_TYPES.map((t) => (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[styles.typePill, accountType === t.key && styles.typePillActive]}
+                    onPress={() => setAccountType(t.key)}
+                  >
+                    <Text style={[styles.typePillText, accountType === t.key && styles.typePillTextActive]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Opening Balance */}
+              <Text style={styles.fieldLabel}>OPENING BALANCE</Text>
+              <View style={styles.balanceRow}>
+                <Text style={styles.balancePrefix}>$</Text>
+                <TextInput
+                  style={styles.balanceInput}
+                  value={balanceStr}
+                  onChangeText={setBalanceStr}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                />
+              </View>
+
+              {/* Last 4 (bank / credit only) */}
+              {(accountType === "bank" || accountType === "credit_card") && (
+                <>
+                  <Text style={styles.fieldLabel}>LAST 4 DIGITS (OPTIONAL)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="e.g. 4242"
+                    placeholderTextColor="#3A4A5A"
+                    value={last4}
+                    onChangeText={(v) => setLast4(v.replace(/\D/g, "").slice(0, 4))}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={isSaving}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.saveButtonText}>{isSaving ? "Saving..." : "Save Account →"}</Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }
@@ -169,4 +324,79 @@ const styles = StyleSheet.create({
   accountTagRed: { color: "#FF4D4D", fontSize: 11 },
   emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
   emptyText: { color: "#7A869A", fontSize: 14 },
+
+  addButton: {
+    backgroundColor: "#00D4FF",
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  addButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  modalSheet: {
+    backgroundColor: "#0B1519",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  modalTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
+
+  fieldLabel: {
+    color: "#7A869A",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  textInput: {
+    backgroundColor: "#1C252E",
+    borderRadius: 14,
+    padding: 16,
+    color: "#FFF",
+    fontSize: 15,
+    marginBottom: 24,
+  },
+
+  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
+  typePill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: "#1C252E",
+    borderWidth: 1,
+    borderColor: "#2A333D",
+  },
+  typePillActive: { backgroundColor: "rgba(0, 212, 255, 0.12)", borderColor: "#00D4FF" },
+  typePillText: { color: "#7A869A", fontSize: 13, fontWeight: "500" },
+  typePillTextActive: { color: "#00D4FF" },
+
+  balanceRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#1C252E", borderRadius: 14, paddingHorizontal: 16, marginBottom: 24 },
+  balancePrefix: { color: "#00D4FF", fontSize: 28, fontWeight: "700", marginRight: 4 },
+  balanceInput: { flex: 1, color: "#00D4FF", fontSize: 32, fontWeight: "800", paddingVertical: 12 },
+
+  saveButton: {
+    backgroundColor: "#00D4FF",
+    borderRadius: 16,
+    paddingVertical: 17,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  saveButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
 });

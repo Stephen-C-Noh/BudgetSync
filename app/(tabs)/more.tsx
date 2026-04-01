@@ -9,6 +9,7 @@ interface SimpleLinkProps {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress?: () => void;
+  disabled?: boolean;
 }
 
 export default function MoreScreen() {
@@ -119,11 +120,11 @@ export default function MoreScreen() {
 
         <Text style={styles.sectionTitle}>RESOURCES</Text>
         <View style={styles.card}>
-          <SimpleLink icon="help-circle-outline" label="Help & Support" />
+          <SimpleLink icon="help-circle-outline" label="Help & Support" disabled />
           <View style={styles.itemDivider} />
-          <SimpleLink icon="chatbubble-ellipses-outline" label="Feedback" />
+          <SimpleLink icon="chatbubble-ellipses-outline" label="Feedback" disabled />
           <View style={styles.itemDivider} />
-          <SimpleLink icon="information-circle-outline" label="About" />
+          <SimpleLink icon="information-circle-outline" label="About" onPress={() => router.push("/about")} />
         </View>
 
         <View style={{ height: 40 }} />
@@ -132,16 +133,16 @@ export default function MoreScreen() {
   );
 }
 
-function SimpleLink({ icon, label, onPress }: SimpleLinkProps) {
+function SimpleLink({ icon, label, onPress, disabled }: SimpleLinkProps) {
   return (
-    <TouchableOpacity style={styles.menuItemRow} onPress={onPress}>
+    <TouchableOpacity style={styles.menuItemRow} onPress={onPress} disabled={disabled} activeOpacity={0.7}>
       <View style={styles.menuLeft}>
-        <View style={styles.iconBox}>
-          <Ionicons name={icon} size={20} color="#00D9FF" />
+        <View style={[styles.iconBox, disabled && styles.iconBoxDisabled]}>
+          <Ionicons name={icon} size={20} color={disabled ? "#3A4A5A" : "#00D9FF"} />
         </View>
-        <Text style={styles.itemTitleText}>{label}</Text>
+        <Text style={[styles.itemTitleText, disabled && styles.itemTitleDisabled]}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#7A869A" />
+      <Ionicons name="chevron-forward" size={18} color={disabled ? "#2A333D" : "#7A869A"} />
     </TouchableOpacity>
   );
 }
@@ -166,4 +167,6 @@ const styles = StyleSheet.create({
   itemDivider: { height: 1, backgroundColor: "#2A333D", marginHorizontal: 16 },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
   syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#00C48C" },
+  iconBoxDisabled: { backgroundColor: "rgba(58, 74, 90, 0.3)" },
+  itemTitleDisabled: { color: "#3A4A5A" },
 });
