@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import * as Crypto from "expo-crypto";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,7 +26,9 @@ export default function AddTransactionScreen() {
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
+  const _d = new Date();
+  const today = dateParam ?? `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
   const filteredCategories = categories.filter((c) => c.type === type);
   const primaryAccount = accounts[0] ?? null;
 
@@ -68,6 +71,7 @@ export default function AddTransactionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -182,6 +186,7 @@ export default function AddTransactionScreen() {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
