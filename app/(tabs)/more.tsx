@@ -1,14 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAppActions, useAppState } from "@/context/AppContext";
+import { authenticate, isBiometricAvailable } from "@/lib/auth";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import {
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SimpleLinkProps {
@@ -19,7 +13,28 @@ interface SimpleLinkProps {
 
 export default function MoreScreen() {
   const router = useRouter();
-  const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(true);
+  const { userProfile, settings } = useAppState();
+  const { updateSetting } = useAppActions();
+
+  const isBiometricsEnabled =
+    settings.find((s) => s.key === "biometrics_enabled")?.value === "true";
+
+  async function handleBiometricsToggle(value: boolean) {
+    if (value) {
+      // Confirm biometrics work before enabling
+      const available = await isBiometricAvailable();
+      if (!available) {
+        Alert.alert(
+          "Not Available",
+          "Biometric authentication is not set up on this device."
+        );
+        return;
+      }
+      const success = await authenticate("Confirm to enable biometrics");
+      if (!success) return;
+    }
+    await updateSetting("biometrics_enabled", value ? "true" : "false");
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -37,8 +52,8 @@ export default function MoreScreen() {
               </TouchableOpacity>
             </View>
             <View style={{ marginLeft: 20 }}>
-              <Text style={styles.profileName}>Alex Johnson</Text>
-              <Text style={styles.profileEmail}>alex.johnson@budgetsync.io</Text>
+              <Text style={styles.profileName}>{userProfile?.name ?? "—"}</Text>
+              <Text style={styles.profileEmail}>{userProfile?.email ?? "—"}</Text>
             </View>
           </View>
         </View>
@@ -78,7 +93,7 @@ export default function MoreScreen() {
             </View>
             <Switch
               value={isBiometricsEnabled}
-              onValueChange={setIsBiometricsEnabled}
+              onValueChange={handleBiometricsToggle}
               trackColor={{ false: "#2A333D", true: "#00D9FF" }}
               thumbColor="#FFF"
             />
