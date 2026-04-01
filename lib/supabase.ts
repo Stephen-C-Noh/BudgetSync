@@ -5,12 +5,43 @@ import { Account, Transaction } from "@/lib/types";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
-console.log("[Supabase] URL:", SUPABASE_URL ?? "UNDEFINED ← env var not loaded");
+// SecureStore has a 2048-byte limit on Android. Chunk large values (e.g. Supabase session).
+const CHUNK_SIZE = 2000;
 
 const SecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+  getItem: async (key: string): Promise<string | null> => {
+    const chunkCount = await SecureStore.getItemAsync(`${key}_chunks`);
+    if (chunkCount) {
+      let value = "";
+      for (let i = 0; i < parseInt(chunkCount, 10); i++) {
+        value += (await SecureStore.getItemAsync(`${key}_chunk_${i}`)) ?? "";
+      }
+      return value;
+    }
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (value.length > CHUNK_SIZE) {
+      const chunks = Math.ceil(value.length / CHUNK_SIZE);
+      for (let i = 0; i < chunks; i++) {
+        await SecureStore.setItemAsync(`${key}_chunk_${i}`, value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE));
+      }
+      await SecureStore.setItemAsync(`${key}_chunks`, chunks.toString());
+    } else {
+      await SecureStore.setItemAsync(key, value);
+    }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    const chunkCount = await SecureStore.getItemAsync(`${key}_chunks`);
+    if (chunkCount) {
+      for (let i = 0; i < parseInt(chunkCount, 10); i++) {
+        await SecureStore.deleteItemAsync(`${key}_chunk_${i}`);
+      }
+      await SecureStore.deleteItemAsync(`${key}_chunks`);
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+  },
 };
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

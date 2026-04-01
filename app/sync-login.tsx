@@ -16,19 +16,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "KRW", "CAD", "AUD"];
+
 export default function SyncLoginScreen() {
   const router = useRouter();
-  const { syncUser, accounts } = useAppState();
-  const { loginSync, signUpSync, logoutSync, reloadAll } = useAppActions();
+  const { syncUser, accounts, userProfile } = useAppState();
+  const { loginSync, signUpSync, logoutSync, reloadAll, updateUserProfile } = useAppActions();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   async function handleSubmit() {
+    if (mode === "signup" && !name.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
     if (!email.trim() || !password) {
       setError("Please enter your email and password.");
       return;
@@ -51,10 +60,19 @@ export default function SyncLoginScreen() {
       // Check if session is active (email confirmation may be required)
       const user = await getSupabaseUser();
       if (!user) {
-        // Supabase sent a confirmation email — not signed in yet
         setIsLoading(false);
         setError("Check your email and confirm your account, then sign in.");
         return;
+      }
+
+      // On signup: update local profile with entered details
+      if (mode === "signup" && userProfile) {
+        await updateUserProfile({
+          ...userProfile,
+          name: name.trim(),
+          email: user.email,
+          currency,
+        });
       }
 
       // Push local data to Supabase
@@ -109,7 +127,7 @@ export default function SyncLoginScreen() {
             </View>
             <View style={styles.dot} />
           </View>
-          <Text style={styles.connectedLabel}>Connected</Text>
+          <Text style={styles.connectedLabel}>CONNECTED</Text>
           <Text style={styles.connectedEmail}>{syncUser.email}</Text>
           <Text style={styles.connectedSub}>
             Your transactions sync automatically each time you open the app.
@@ -153,8 +171,9 @@ export default function SyncLoginScreen() {
           </View>
           <Text style={styles.title}>Back up your data</Text>
           <Text style={styles.subtitle}>
-            Sign in to sync your transactions across devices. Your data is
-            stored securely in your personal account.
+            {mode === "signin"
+              ? "Sign in to restore and sync your data across devices."
+              : "Create an account to back up and sync your transactions."}
           </Text>
 
           {/* Mode toggle */}
@@ -178,6 +197,21 @@ export default function SyncLoginScreen() {
           </View>
 
           <View style={styles.form}>
+            {/* Name — signup only */}
+            {mode === "signup" && (
+              <>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Alex Johnson"
+                  placeholderTextColor="#4A5568"
+                  autoCapitalize="words"
+                  value={name}
+                  onChangeText={setName}
+                />
+              </>
+            )}
+
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
@@ -188,15 +222,41 @@ export default function SyncLoginScreen() {
               value={email}
               onChangeText={setEmail}
             />
+
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor="#4A5568"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="••••••••"
+                placeholderTextColor="#4A5568"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#7A869A" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Currency — signup only */}
+            {mode === "signup" && (
+              <>
+                <Text style={styles.label}>Currency</Text>
+                <View style={styles.currencyRow}>
+                  {CURRENCIES.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={[styles.currencyChip, currency === c && styles.currencyChipActive]}
+                      onPress={() => setCurrency(c)}
+                    >
+                      <Text style={[styles.currencyChipText, currency === c && styles.currencyChipTextActive]}>
+                        {c}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
           </View>
 
           {error && <Text style={styles.errorText}>{error}</Text>}
@@ -282,6 +342,40 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 15,
   },
+  currencyRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  currencyChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#1C252E",
+    borderWidth: 1,
+    borderColor: "#2A333D",
+  },
+  currencyChipActive: {
+    backgroundColor: "rgba(0,217,255,0.12)",
+    borderColor: "#00D9FF",
+  },
+  currencyChipText: { color: "#7A869A", fontSize: 14, fontWeight: "600" },
+  currencyChipTextActive: { color: "#00D9FF" },
+  passwordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1C252E",
+    borderRadius: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: "#FFF",
+    fontSize: 15,
+  },
+  eyeBtn: { paddingHorizontal: 14 },
   errorText: { color: "#FF6B6B", fontSize: 13, textAlign: "center", marginTop: 8, alignSelf: "stretch" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   statusText: { color: "#7A869A", fontSize: 13 },
@@ -315,7 +409,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#1C252E",
   },
-  connectedLabel: { color: "#00C48C", fontSize: 13, fontWeight: "700", marginBottom: 6, letterSpacing: 1 },
+  connectedLabel: { color: "#00C48C", fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginBottom: 8 },
   connectedEmail: { color: "#FFF", fontSize: 17, fontWeight: "700", marginBottom: 10 },
   connectedSub: { color: "#7A869A", fontSize: 14, textAlign: "center", lineHeight: 20 },
   disconnectBtn: {
