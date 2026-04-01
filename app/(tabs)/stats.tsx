@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useAppState } from "@/context/AppContext";
 import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,14 +13,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 
 const TOP_TABS = ["Overview", "Expenses", "Income"] as const;
-const MONTHS = ["October 2023", "September", "August"] as const;
+type TopTab = (typeof TOP_TABS)[number];
 
-const SPENDING_DATA = [
-  { label: "Housing", amount: "$1,200.00", color: "#21C8F6" },
-  { label: "Food & Dining", amount: "$840.50", color: "#7A6CFF" },
-  { label: "Transport", amount: "$450.00", color: "#4CD6B8" },
-  { label: "Shopping", amount: "$320.00", color: "#F3C94D" },
-];
+const CHART_COLORS = ["#21C8F6", "#7A6CFF", "#4CD6B8", "#F3C94D", "#FF7C7C", "#A37CFF", "#2BE38B"];
 
 const COLORS = {
   background: "#071420",
@@ -37,191 +34,258 @@ const COLORS = {
   smallText: "#6E8596",
 };
 
-export default function StatsScreen() {
-  const [activeTopTab, setActiveTopTab] =
-    useState<(typeof TOP_TABS)[number]>("Expenses");
-  const [activeMonth, setActiveMonth] =
-    useState<(typeof MONTHS)[number]>("October 2023");
+// Generate last N months as { label, year, month } objects
+function getRecentMonths(count: number) {
+  const result = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    result.push({
+      label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+      year: d.getFullYear(),
+      month: d.getMonth(),
+    });
+  }
+  return result;
+}
 
+const MONTH_OPTIONS = getRecentMonths(3);
+
+export default function StatsScreen() {
+  const { transactions, categories, budgetGoals, isLoading } = useAppState();
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+
+  const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
+
+  // Filter transactions by selected month + tab type
+  const txType = activeTopTab === "Expenses" ? "expense" : activeTopTab === "Income" ? "income" : null;
+
+  const filteredTxs = useMemo(() => {
+    return transactions.filter((tx) => {
+      const d = new Date(tx.date);
+      const matchMonth = d.getFullYear() === selectedMonth.year && d.getMonth() === selectedMonth.month;
+      const matchType = txType ? tx.type === txType : true;
+      return matchMonth && matchType;
+    });
+  }, [transactions, selectedMonth, txType]);
+
+  // Total spending/income for selected period
+  const totalAmount = useMemo(
+    () => filteredTxs.reduce((sum, tx) => sum + tx.amount, 0),
+    [filteredTxs]
+  );
+
+  // Category map
+  const categoryMap = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories]
+  );
+
+  // Monthly budget total (sum of all monthly goals)
+  const totalMonthlyBudget = useMemo(
+    () => budgetGoals.filter((g) => g.period === "monthly").reduce((sum, g) => sum + g.limit_amount, 0),
+    [budgetGoals]
+  );
+
+  // Spending breakdown by category
+  const breakdown = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const tx of filteredTxs) {
+      map[tx.category_id] = (map[tx.category_id] ?? 0) + tx.amount;
+    }
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([catId, amount], i) => ({
+        label: categoryMap.get(catId)?.name ?? "Other",
+        amount,
+        color: CHART_COLORS[i % CHART_COLORS.length],
+      }));
+  }, [filteredTxs, categoryMap]);
+
+  const topCategory = breakdown[0]?.label ?? "—";
+
+  // Weekly totals (W1=1-7, W2=8-14, W3=15-21, W4=22+)
+  const weeklyTotals = useMemo(() => {
+    const weeks = [0, 0, 0, 0];
+    for (const tx of filteredTxs) {
+      const day = new Date(tx.date).getDate();
+      const weekIdx = Math.min(Math.floor((day - 1) / 7), 3);
+      weeks[weekIdx] += tx.amount;
+    }
+    return weeks;
+  }, [filteredTxs]);
+
+  const maxWeekly = Math.max(...weeklyTotals, 1);
+
+  // Donut chart — show top category share
   const chart = useMemo(() => {
     const radius = 72;
     const strokeWidth = 16;
     const size = 190;
     const circumference = 2 * Math.PI * radius;
-    const progress = 0.82;
+    const topAmount = breakdown[0]?.amount ?? 0;
+    const progress = totalAmount > 0 ? Math.min(topAmount / totalAmount, 1) : 0;
     const strokeDashoffset = circumference - circumference * progress;
+    return { radius, strokeWidth, size, circumference, strokeDashoffset, color: breakdown[0]?.color ?? COLORS.accent };
+  }, [breakdown, totalAmount]);
 
-    return {
-      radius,
-      strokeWidth,
-      size,
-      circumference,
-      strokeDashoffset,
-    };
-  }, []);
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator style={{ flex: 1 }} color="#00D1FF" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.headerTitle}>Stats</Text>
 
+        {/* Top tabs */}
         <View style={styles.topTabs}>
           {TOP_TABS.map((tab) => {
             const isActive = activeTopTab === tab;
-
             return (
-              <TouchableOpacity
-                key={tab}
-                style={styles.topTabButton}
-                onPress={() => setActiveTopTab(tab)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.topTabText,
-                    isActive && styles.topTabTextActive,
-                  ]}
-                >
-                  {tab}
-                </Text>
-
+              <TouchableOpacity key={tab} style={styles.topTabButton} onPress={() => setActiveTopTab(tab)} activeOpacity={0.8}>
+                <Text style={[styles.topTabText, isActive && styles.topTabTextActive]}>{tab}</Text>
                 {isActive && <View style={styles.topTabUnderline} />}
               </TouchableOpacity>
             );
           })}
         </View>
 
+        {/* Month chips */}
         <View style={styles.monthRow}>
-          {MONTHS.map((month) => {
-            const isActive = activeMonth === month;
-
+          {MONTH_OPTIONS.map((m, idx) => {
+            const isActive = idx === selectedMonthIdx;
             return (
               <TouchableOpacity
-                key={month}
+                key={m.label}
                 style={[styles.monthChip, isActive && styles.monthChipActive]}
-                onPress={() => setActiveMonth(month)}
+                onPress={() => setSelectedMonthIdx(idx)}
                 activeOpacity={0.8}
               >
-                <Text
-                  style={[
-                    styles.monthChipText,
-                    isActive && styles.monthChipTextActive,
-                  ]}
-                >
-                  {month}
+                <Text style={[styles.monthChipText, isActive && styles.monthChipTextActive]}>
+                  {idx === 0 ? m.label : m.label.split(" ")[0]}
                 </Text>
-
-                {isActive && (
-                  <Ionicons name="chevron-down" size={14} color="#FFFFFF" />
-                )}
+                {isActive && <Ionicons name="chevron-down" size={14} color="#FFFFFF" />}
               </TouchableOpacity>
             );
           })}
         </View>
 
+        {/* Summary cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Spending</Text>
-            <Text style={styles.summaryValue}>$3,240.50</Text>
-            <Text style={styles.summaryGrowth}>+12% vs last month</Text>
+            <Text style={styles.summaryLabel}>
+              {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
+            </Text>
+            <Text style={styles.summaryValue}>
+              ${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Text>
           </View>
 
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Monthly Budget</Text>
-            <Text style={styles.summaryValue}>$4,000.00</Text>
-            <View style={styles.progressTrack}>
-              <View style={styles.progressFill} />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Spending Breakdown</Text>
-
-          <View style={styles.chartContainer}>
-            <View style={styles.chartWrapper}>
-              <Svg width={chart.size} height={chart.size}>
-                <Circle
-                  stroke={COLORS.progressTrack}
-                  fill="none"
-                  cx={chart.size / 2}
-                  cy={chart.size / 2}
-                  r={chart.radius}
-                  strokeWidth={chart.strokeWidth}
-                />
-                <Circle
-                  stroke="#21C8F6"
-                  fill="none"
-                  cx={chart.size / 2}
-                  cy={chart.size / 2}
-                  r={chart.radius}
-                  strokeWidth={chart.strokeWidth}
-                  strokeDasharray={`${chart.circumference} ${chart.circumference}`}
-                  strokeDashoffset={chart.strokeDashoffset}
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin={`${chart.size / 2}, ${chart.size / 2}`}
-                />
-              </Svg>
-
-              <View style={styles.chartCenter}>
-                <Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
-                <Text
-                  style={styles.chartCenterValue}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  Housing
+            {totalMonthlyBudget > 0 ? (
+              <>
+                <Text style={styles.summaryValue}>
+                  ${totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.legendList}>
-            {SPENDING_DATA.map((item) => (
-              <View key={item.label} style={styles.legendRow}>
-                <View style={styles.legendLeft}>
+                <View style={styles.progressTrack}>
                   <View
-                    style={[styles.legendDot, { backgroundColor: item.color }]}
+                    style={[
+                      styles.progressFill,
+                      { width: `${Math.min((totalAmount / totalMonthlyBudget) * 100, 100)}%` as any },
+                    ]}
                   />
-                  <Text style={styles.legendText}>{item.label}</Text>
                 </View>
-                <Text style={styles.legendAmount}>{item.amount}</Text>
-              </View>
-            ))}
+              </>
+            ) : (
+              <Text style={styles.noBudgetText}>No goals set</Text>
+            )}
           </View>
         </View>
 
+        {/* Spending breakdown */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            {activeTopTab === "Income" ? "Income Breakdown" : "Spending Breakdown"}
+          </Text>
+
+          {breakdown.length === 0 ? (
+            <Text style={styles.emptyText}>No data for this period.</Text>
+          ) : (
+            <>
+              <View style={styles.chartContainer}>
+                <View style={styles.chartWrapper}>
+                  <Svg width={chart.size} height={chart.size}>
+                    <Circle
+                      stroke={COLORS.progressTrack}
+                      fill="none"
+                      cx={chart.size / 2}
+                      cy={chart.size / 2}
+                      r={chart.radius}
+                      strokeWidth={chart.strokeWidth}
+                    />
+                    <Circle
+                      stroke={chart.color}
+                      fill="none"
+                      cx={chart.size / 2}
+                      cy={chart.size / 2}
+                      r={chart.radius}
+                      strokeWidth={chart.strokeWidth}
+                      strokeDasharray={`${chart.circumference} ${chart.circumference}`}
+                      strokeDashoffset={chart.strokeDashoffset}
+                      strokeLinecap="round"
+                      rotation="-90"
+                      origin={`${chart.size / 2}, ${chart.size / 2}`}
+                    />
+                  </Svg>
+                  <View style={styles.chartCenter}>
+                    <Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
+                    <Text style={styles.chartCenterValue} numberOfLines={1} adjustsFontSizeToFit>
+                      {topCategory}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.legendList}>
+                {breakdown.map((item) => (
+                  <View key={item.label} style={styles.legendRow}>
+                    <View style={styles.legendLeft}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendText}>{item.label}</Text>
+                    </View>
+                    <Text style={styles.legendAmount}>
+                      ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Weekly trends */}
         <View style={styles.card}>
           <View style={styles.weekHeader}>
             <Text style={styles.cardTitle}>Weekly Trends</Text>
             <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
           </View>
-
           <View style={styles.weekChart}>
-            <View style={styles.weekColumn}>
-              <View style={[styles.bar, { height: 38 }]} />
-              <Text style={styles.weekLabel}>W1</Text>
-            </View>
-
-            <View style={styles.weekColumn}>
-              <View style={[styles.bar, { height: 62 }]} />
-              <Text style={styles.weekLabel}>W2</Text>
-            </View>
-
-            <View style={styles.weekColumn}>
-              <View style={[styles.bar, { height: 48 }]} />
-              <Text style={styles.weekLabel}>W3</Text>
-            </View>
-
-            <View style={styles.weekColumn}>
-              <View style={[styles.bar, { height: 72 }]} />
-              <Text style={styles.weekLabel}>W4</Text>
-            </View>
+            {weeklyTotals.map((val, i) => {
+              const barHeight = maxWeekly > 0 ? Math.max((val / maxWeekly) * 90, val > 0 ? 6 : 0) : 0;
+              return (
+                <View key={i} style={styles.weekColumn}>
+                  <View style={[styles.bar, { height: barHeight }]} />
+                  <Text style={styles.weekLabel}>W{i + 1}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -230,225 +294,52 @@ export default function StatsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 30,
-  },
-  headerTitle: {
-    color: COLORS.white,
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 18,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  content: { padding: 16, paddingBottom: 30 },
+  headerTitle: { color: COLORS.white, fontSize: 22, fontWeight: "700", marginBottom: 18 },
 
-  topTabs: {
-    flexDirection: "row",
-    gap: 18,
-    marginBottom: 16,
-  },
-  topTabButton: {
-    alignItems: "center",
-    paddingBottom: 2,
-  },
-  topTabText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  topTabTextActive: {
-    color: COLORS.accent,
-    fontWeight: "700",
-  },
-  topTabUnderline: {
-    width: "100%",
-    height: 2,
-    marginTop: 6,
-    borderRadius: 999,
-    backgroundColor: COLORS.accent,
-  },
+  topTabs: { flexDirection: "row", gap: 18, marginBottom: 16 },
+  topTabButton: { alignItems: "center", paddingBottom: 2 },
+  topTabText: { color: COLORS.muted, fontSize: 14, fontWeight: "500" },
+  topTabTextActive: { color: COLORS.accent, fontWeight: "700" },
+  topTabUnderline: { width: "100%", height: 2, marginTop: 6, borderRadius: 999, backgroundColor: COLORS.accent },
 
-  monthRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 18,
-  },
-  monthChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: COLORS.chip,
-  },
-  monthChipActive: {
-    backgroundColor: COLORS.chipActive,
-  },
-  monthChipText: {
-    color: "#AFC2D3",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  monthChipTextActive: {
-    color: COLORS.white,
-  },
+  monthRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
+  monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.chip },
+  monthChipActive: { backgroundColor: COLORS.chipActive },
+  monthChipText: { color: "#AFC2D3", fontSize: 12, fontWeight: "600" },
+  monthChipTextActive: { color: COLORS.white },
 
-  summaryRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 18,
-  },
-  summaryCard: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-  },
-  summaryLabel: {
-    color: COLORS.secondaryText,
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  summaryValue: {
-    color: COLORS.white,
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  summaryGrowth: {
-    color: COLORS.success,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  progressTrack: {
-    height: 8,
-    marginTop: 8,
-    overflow: "hidden",
-    borderRadius: 999,
-    backgroundColor: COLORS.progressTrack,
-  },
-  progressFill: {
-    width: "81%",
-    height: "100%",
-    borderRadius: 999,
-    backgroundColor: "#22C8F6",
-  },
+  summaryRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
+  summaryCard: { flex: 1, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  summaryLabel: { color: COLORS.secondaryText, fontSize: 12, marginBottom: 8 },
+  summaryValue: { color: COLORS.white, fontSize: 22, fontWeight: "700", marginBottom: 8 },
+  noBudgetText: { color: COLORS.muted, fontSize: 13 },
+  progressTrack: { height: 8, marginTop: 8, overflow: "hidden", borderRadius: 999, backgroundColor: COLORS.progressTrack },
+  progressFill: { height: "100%", borderRadius: 999, backgroundColor: "#22C8F6" },
 
-  card: {
-    padding: 16,
-    marginBottom: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-  },
-  cardTitle: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 14,
-  },
+  card: { padding: 16, marginBottom: 18, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  cardTitle: { color: COLORS.white, fontSize: 16, fontWeight: "700", marginBottom: 14 },
+  emptyText: { color: COLORS.muted, fontSize: 14, textAlign: "center", paddingVertical: 20 },
 
-  chartContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-    marginBottom: 22,
-  },
-  chartWrapper: {
-    width: 190,
-    height: 190,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chartCenter: {
-    position: "absolute",
-    width: 118,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chartCenterLabel: {
-    color: "#738A9B",
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    marginBottom: 6,
-  },
-  chartCenterValue: {
-    maxWidth: 110,
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-  },
+  chartContainer: { alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 22 },
+  chartWrapper: { width: 190, height: 190, alignItems: "center", justifyContent: "center" },
+  chartCenter: { position: "absolute", width: 118, alignItems: "center", justifyContent: "center" },
+  chartCenterLabel: { color: "#738A9B", fontSize: 9, fontWeight: "700", letterSpacing: 1.1, marginBottom: 6 },
+  chartCenterValue: { maxWidth: 110, color: COLORS.white, fontSize: 14, fontWeight: "700", textAlign: "center" },
 
-  legendList: {
-    gap: 12,
-  },
-  legendRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  legendLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    marginRight: 10,
-  },
-  legendText: {
-    color: COLORS.legendText,
-    fontSize: 14,
-  },
-  legendAmount: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  legendList: { gap: 12 },
+  legendRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  legendLeft: { flexDirection: "row", alignItems: "center" },
+  legendDot: { width: 8, height: 8, borderRadius: 999, marginRight: 10 },
+  legendText: { color: COLORS.legendText, fontSize: 14 },
+  legendAmount: { color: COLORS.white, fontSize: 14, fontWeight: "600" },
 
-  weekHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  weekSubtext: {
-    color: COLORS.smallText,
-    fontSize: 12,
-  },
-  weekChart: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    height: 120,
-    marginTop: 10,
-    paddingHorizontal: 8,
-  },
-  weekColumn: {
-    alignItems: "center",
-  },
-  bar: {
-    width: 24,
-    borderRadius: 10,
-    marginBottom: 8,
-    backgroundColor: "#21C8F6",
-  },
-  weekLabel: {
-    color: COLORS.weekText,
-    fontSize: 12,
-  },
+  weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  weekSubtext: { color: COLORS.smallText, fontSize: 12 },
+  weekChart: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, marginTop: 10, paddingHorizontal: 8 },
+  weekColumn: { alignItems: "center" },
+  bar: { width: 24, borderRadius: 10, marginBottom: 8, backgroundColor: "#21C8F6" },
+  weekLabel: { color: COLORS.weekText, fontSize: 12 },
 });
