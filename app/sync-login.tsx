@@ -101,6 +101,28 @@ export default function SyncLoginScreen() {
     }
   }
 
+  async function handleSyncNow() {
+    if (!syncUser) return;
+    setIsLoading(true);
+    setStatusMessage("Syncing…");
+    try {
+      const unsynced = await getUnsyncedTransactions();
+      await Promise.all([
+        pushAccounts(accounts, syncUser.id),
+        unsynced.length > 0 ? pushTransactions(unsynced, syncUser.id) : Promise.resolve(),
+      ]);
+      for (const t of unsynced) await markTransactionSynced(t.id);
+      await reloadAll();
+      setStatusMessage("Synced!");
+      setTimeout(() => setStatusMessage(null), 2000);
+    } catch (e: unknown) {
+      setStatusMessage(null);
+      setError(e instanceof Error ? e.message : "Sync failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function handleLogout() {
     setIsLoading(true);
     await logoutSync();
@@ -134,12 +156,32 @@ export default function SyncLoginScreen() {
           </Text>
         </View>
 
+        {statusMessage && (
+          <View style={styles.statusRow}>
+            <ActivityIndicator size="small" color="#00D9FF" />
+            <Text style={styles.statusText}>{statusMessage}</Text>
+          </View>
+        )}
+        {error && <Text style={[styles.errorText, { marginHorizontal: 24 }]}>{error}</Text>}
+
+        <TouchableOpacity
+          style={styles.syncNowBtn}
+          onPress={handleSyncNow}
+          disabled={isLoading}
+        >
+          {isLoading && statusMessage ? (
+            <ActivityIndicator color="#00D9FF" />
+          ) : (
+            <Text style={styles.syncNowText}>Sync Now</Text>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.disconnectBtn}
           onPress={handleLogout}
           disabled={isLoading}
         >
-          {isLoading ? (
+          {isLoading && !statusMessage ? (
             <ActivityIndicator color="#FF6B6B" />
           ) : (
             <Text style={styles.disconnectText}>Disconnect</Text>
@@ -421,4 +463,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   disconnectText: { color: "#FF6B6B", fontSize: 15, fontWeight: "600" },
+  syncNowBtn: {
+    marginHorizontal: 24,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#00D9FF",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  syncNowText: { color: "#00D9FF", fontSize: 15, fontWeight: "600" },
 });

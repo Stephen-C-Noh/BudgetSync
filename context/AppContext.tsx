@@ -22,6 +22,7 @@ import {
 import {
   SyncUser,
   getSupabaseUser,
+  pushAccounts,
   pushTransactions,
   signInSupabase,
   signOutSupabase,
@@ -104,18 +105,25 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     initialize();
   }, []);
 
-  // Foreground sync: push unsynced transactions when app becomes active
+  // Foreground sync: push unsynced transactions + all accounts when app becomes active
+  const accountsRef = useRef<Account[]>([]);
+  useEffect(() => { accountsRef.current = accounts; }, [accounts]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (state) => {
       if (state !== "active" || !syncUserRef.current) return;
       try {
-        const unsynced = await getUnsyncedTransactions();
-        if (unsynced.length === 0) return;
-        await pushTransactions(unsynced, syncUserRef.current.id);
+        const [unsynced] = await Promise.all([getUnsyncedTransactions()]);
+        await Promise.all([
+          unsynced.length > 0 ? pushTransactions(unsynced, syncUserRef.current.id) : Promise.resolve(),
+          accountsRef.current.length > 0 ? pushAccounts(accountsRef.current, syncUserRef.current.id) : Promise.resolve(),
+        ]);
         for (const t of unsynced) await markTransactionSynced(t.id);
-        setTransactions((prev) =>
-          prev.map((t) => (unsynced.some((u) => u.id === t.id) ? { ...t, synced: 1 as const } : t))
-        );
+        if (unsynced.length > 0) {
+          setTransactions((prev) =>
+            prev.map((t) => (unsynced.some((u) => u.id === t.id) ? { ...t, synced: 1 as const } : t))
+          );
+        }
       } catch {
         // Sync failure is silent — will retry next foreground
       }
@@ -126,6 +134,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const addAccount = async (account: Account) => {
     await insertAccount(account);
     setAccounts((prev) => [...prev, account]);
+    if (syncUserRef.current) {
+      try { await pushAccounts([account], syncUserRef.current.id); } catch { /* retry on next sync */ }
+    }
   };
 
   const addTransaction = async (transaction: Transaction) => {

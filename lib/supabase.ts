@@ -115,14 +115,19 @@ export async function pullTransactions(userId: string): Promise<Transaction[]> {
 }
 
 // Push accounts to Supabase (upsert by id).
+// Upserts individually so an RLS conflict on one row (e.g. a row previously
+// owned by a different test user) doesn't block the rest.
 export async function pushAccounts(
   accounts: Account[],
   userId: string
 ): Promise<void> {
-  if (accounts.length === 0) return;
-  const rows = accounts.map((a) => ({ ...a, user_id: userId }));
-  const { error } = await supabase.from("accounts").upsert(rows);
-  if (error) throw new Error(error.message);
+  for (const account of accounts) {
+    const { error } = await supabase
+      .from("accounts")
+      .upsert({ ...account, user_id: userId });
+    if (error && error.code !== "42501") throw new Error(error.message);
+    // code 42501 = RLS violation — row belongs to a different user, skip it
+  }
 }
 
 // Pull all accounts for user.
