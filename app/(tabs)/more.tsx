@@ -13,7 +13,7 @@ interface SimpleLinkProps {
 
 export default function MoreScreen() {
   const router = useRouter();
-  const { userProfile, settings } = useAppState();
+  const { userProfile, settings, syncUser } = useAppState();
   const { updateSetting } = useAppActions();
 
   const isBiometricsEnabled =
@@ -93,6 +93,30 @@ export default function MoreScreen() {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>CLOUD SYNC</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.menuItemRow}
+            onPress={() => router.push("/sync-login")}
+          >
+            <View style={styles.menuLeft}>
+              <View style={styles.iconBox}>
+                <Ionicons name="cloud-outline" size={20} color="#00D9FF" />
+              </View>
+              <View>
+                <Text style={styles.itemTitleText}>Cloud Sync</Text>
+                <Text style={styles.itemSubText}>
+                  {syncUser ? syncUser.email : "Not connected"}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              {syncUser && <View style={styles.syncDot} />}
+              <Ionicons name="chevron-forward" size={18} color="#7A869A" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>RESOURCES</Text>
         <View style={styles.card}>
           <SimpleLink icon="help-circle-outline" label="Help & Support" />
@@ -141,4 +165,5 @@ const styles = StyleSheet.create({
   profileEmail: { color: "#7A869A", fontSize: 14, marginTop: 4 },
   itemDivider: { height: 1, backgroundColor: "#2A333D", marginHorizontal: 16 },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
+  syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#00C48C" },
 });

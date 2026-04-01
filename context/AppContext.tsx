@@ -8,15 +8,25 @@ import {
   getSettings,
   getTransactions,
   getUserProfile,
+  getUnsyncedTransactions,
   initializeDatabase,
   insertAccount,
   insertBudgetGoal,
   insertCategory,
   insertTransaction,
+  markTransactionSynced,
   updateAccountBalance,
   upsertSetting,
   upsertUserProfile,
 } from "@/lib/db";
+import {
+  SyncUser,
+  getSupabaseUser,
+  pushTransactions,
+  signInSupabase,
+  signOutSupabase,
+  signUpSupabase,
+} from "@/lib/supabase";
 import {
   Account,
   BudgetGoal,
@@ -25,7 +35,8 @@ import {
   Transaction,
   UserProfile,
 } from "@/lib/types";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 
 interface AppContextType {
   accounts: Account[];
@@ -35,6 +46,7 @@ interface AppContextType {
   userProfile: UserProfile | null;
   settings: Setting[];
   isLoading: boolean;
+  syncUser: SyncUser | null;
 }
 
 interface AppActionsType {
@@ -47,6 +59,10 @@ interface AppActionsType {
   deleteBudgetGoal: (id: string) => Promise<void>;
   updateUserProfile: (profile: UserProfile) => Promise<void>;
   updateSetting: (key: string, value: string) => Promise<void>;
+  loginSync: (email: string, password: string) => Promise<string | null>;
+  signUpSync: (email: string, password: string) => Promise<string | null>;
+  logoutSync: () => Promise<void>;
+  reloadAll: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -60,17 +76,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [settings, setSettings] = useState<Setting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncUser, setSyncUser] = useState<SyncUser | null>(null);
+  const syncUserRef = useRef<SyncUser | null>(null);
 
   useEffect(() => {
     async function initialize() {
       await initializeDatabase();
-      const [accs, cats, txs, goals, profile, sets] = await Promise.all([
+      const [accs, cats, txs, goals, profile, sets, user] = await Promise.all([
         getAccounts(),
         getCategories(),
         getTransactions(),
         getBudgetGoals(),
         getUserProfile(),
         getSettings(),
+        getSupabaseUser(),
       ]);
       setAccounts(accs);
       setCategories(cats);
@@ -78,9 +97,30 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setBudgetGoals(goals);
       setUserProfile(profile);
       setSettings(sets);
+      setSyncUser(user);
+      syncUserRef.current = user;
       setIsLoading(false);
     }
     initialize();
+  }, []);
+
+  // Foreground sync: push unsynced transactions when app becomes active
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (state) => {
+      if (state !== "active" || !syncUserRef.current) return;
+      try {
+        const unsynced = await getUnsyncedTransactions();
+        if (unsynced.length === 0) return;
+        await pushTransactions(unsynced, syncUserRef.current.id);
+        for (const t of unsynced) await markTransactionSynced(t.id);
+        setTransactions((prev) =>
+          prev.map((t) => (unsynced.some((u) => u.id === t.id) ? { ...t, synced: 1 as const } : t))
+        );
+      } catch {
+        // Sync failure is silent — will retry next foreground
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   const addAccount = async (account: Account) => {
@@ -155,6 +195,36 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
+  const loginSync = async (email: string, password: string): Promise<string | null> => {
+    const error = await signInSupabase(email, password);
+    if (error) return error;
+    const user = await getSupabaseUser();
+    setSyncUser(user);
+    syncUserRef.current = user;
+    return null;
+  };
+
+  const signUpSync = async (email: string, password: string): Promise<string | null> => {
+    const error = await signUpSupabase(email, password);
+    if (error) return error;
+    const user = await getSupabaseUser();
+    setSyncUser(user);
+    syncUserRef.current = user;
+    return null;
+  };
+
+  const logoutSync = async () => {
+    await signOutSupabase();
+    setSyncUser(null);
+    syncUserRef.current = null;
+  };
+
+  const reloadAll = async () => {
+    const [accs, txs] = await Promise.all([getAccounts(), getTransactions()]);
+    setAccounts(accs);
+    setTransactions(txs);
+  };
+
   return (
     <AppActionsContext.Provider
       value={{
@@ -167,10 +237,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         deleteBudgetGoal,
         updateUserProfile,
         updateSetting,
+        loginSync,
+        signUpSync,
+        logoutSync,
+        reloadAll,
       }}
     >
       <AppContext.Provider
-        value={{ accounts, categories, transactions, budgetGoals, userProfile, settings, isLoading }}
+        value={{ accounts, categories, transactions, budgetGoals, userProfile, settings, isLoading, syncUser }}
       >
         {children}
       </AppContext.Provider>

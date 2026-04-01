@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import { AppProvider, useAppState } from "@/context/AppContext";
 import { AuthContext } from "@/context/AuthContext";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
@@ -34,6 +35,7 @@ function InnerLayout() {
         <Stack.Screen name="category-settings" />
         <Stack.Screen name="budget-goals" />
         <Stack.Screen name="set-pin" />
+        <Stack.Screen name="sync-login" />
       </Stack>
     </AuthContext.Provider>
   );

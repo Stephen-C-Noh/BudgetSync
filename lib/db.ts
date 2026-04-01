@@ -219,6 +219,46 @@ export async function upsertUserProfile(profile: UserProfile): Promise<void> {
   );
 }
 
+// ─── Sync helpers ─────────────────────────────────────────────────────────────
+
+export async function getUnsyncedTransactions(): Promise<Transaction[]> {
+  const database = await db;
+  return database.getAllAsync<Transaction>(
+    "SELECT * FROM transactions WHERE synced = 0"
+  );
+}
+
+export async function markTransactionSynced(id: string): Promise<void> {
+  const database = await db;
+  await database.runAsync("UPDATE transactions SET synced = 1 WHERE id = ?", [id]);
+}
+
+export async function upsertTransaction(transaction: Transaction): Promise<void> {
+  const database = await db;
+  await database.runAsync(
+    "INSERT OR REPLACE INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [
+      transaction.id,
+      transaction.account_id,
+      transaction.category_id,
+      transaction.type,
+      transaction.amount,
+      transaction.note ?? null,
+      transaction.date,
+      transaction.created_at,
+      transaction.synced,
+    ]
+  );
+}
+
+export async function upsertAccount(account: Account): Promise<void> {
+  const database = await db;
+  await database.runAsync(
+    "INSERT OR REPLACE INTO accounts (id, name, type, last4, balance, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [account.id, account.name, account.type, account.last4 ?? null, account.balance, account.currency, account.created_at]
+  );
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function getSettings(): Promise<Setting[]> {
