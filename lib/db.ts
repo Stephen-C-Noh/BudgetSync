@@ -96,25 +96,6 @@ export async function initializeDatabase() {
     }
   }
 
-  // Seed default account
-  const accResult = await database.getFirstAsync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM accounts",
-  );
-  if (accResult?.count === 0) {
-    await database.runAsync(
-      "INSERT INTO accounts (id, name, type, last4, balance, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [
-        Crypto.randomUUID(),
-        "Main Account",
-        "bank",
-        "4821",
-        0,
-        "USD",
-        new Date().toISOString(),
-      ],
-    );
-  }
-
   // Seed default user profile
   const profileResult = await database.getFirstAsync<{ count: number }>(
     "SELECT COUNT(*) as count FROM user_profile",
