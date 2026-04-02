@@ -1,14 +1,15 @@
 import {
-  deleteCategory as dbDeleteCategory,
   deleteBudgetGoal as dbDeleteBudgetGoal,
+  deleteCategory as dbDeleteCategory,
   deleteTransaction as dbDeleteTransaction,
+  updateTransaction as dbUpdateTransaction,
   getAccounts,
   getBudgetGoals,
   getCategories,
   getSettings,
   getTransactions,
-  getUserProfile,
   getUnsyncedTransactions,
+  getUserProfile,
   initializeDatabase,
   insertAccount,
   insertBudgetGoal,
@@ -16,10 +17,14 @@ import {
   insertTransaction,
   markTransactionSynced,
   updateAccountBalance,
-  updateTransaction as dbUpdateTransaction,
   upsertSetting,
   upsertUserProfile,
 } from "@/lib/db";
+import {
+  buildWeeklySummary,
+  checkBudgetAlerts,
+  scheduleLocalNotification,
+} from "@/lib/notifications";
 import {
   SyncUser,
   getSupabaseUser,
@@ -37,7 +42,13 @@ import {
   Transaction,
   UserProfile,
 } from "@/lib/types";
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppState } from "react-native";
 
 interface AppContextType {
@@ -109,21 +120,71 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Foreground sync: push unsynced transactions + all accounts when app becomes active
   const accountsRef = useRef<Account[]>([]);
-  useEffect(() => { accountsRef.current = accounts; }, [accounts]);
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
+  /*
+          Why refs instead of reading settings/transactions directly inside the listener?
+            The useEffect with [] runs once and captures a stale closure 
+            settings and transactions inside the listener would always be their initial empty arrays. 
+            Refs always point to the latest value, which is why the existing code already 
+            uses accountsRef and syncUserRef for the same reason.
+  */
+  const settingsRef = useRef<Setting[]>([]);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  const transactionsRef = useRef<Transaction[]>([]);
+  useEffect(() => {
+    transactionsRef.current = transactions;
+  }, [transactions]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (state) => {
-      if (state !== "active" || !syncUserRef.current) return;
+      if (state !== "active") return;
+      // Weekly digest — runs for ALL users, no sync required
+      const digestEnabled =
+        settingsRef.current.find((s) => s.key === "weekly_digest")?.value ===
+        "1";
+      if (digestEnabled) {
+        const lastDigest =
+          settingsRef.current.find((s) => s.key === "last_digest_at")?.value ??
+          "";
+        const elapsed = lastDigest
+          ? Date.now() - Date.parse(lastDigest)
+          : Infinity;
+        if (elapsed >= 7 * 24 * 60 * 60 * 1000) {
+          try {
+            const summary = buildWeeklySummary(transactionsRef.current);
+            await scheduleLocalNotification("Weekly Summary", summary);
+            await updateSetting("last_digest_at", new Date().toISOString());
+          } catch {
+            // weekly digest failure is silent — will retry next foreground
+          }
+        }
+      }
+
+      if (!syncUserRef.current) return;
       try {
         const [unsynced] = await Promise.all([getUnsyncedTransactions()]);
         await Promise.all([
-          unsynced.length > 0 ? pushTransactions(unsynced, syncUserRef.current.id) : Promise.resolve(),
-          accountsRef.current.length > 0 ? pushAccounts(accountsRef.current, syncUserRef.current.id) : Promise.resolve(),
+          unsynced.length > 0
+            ? pushTransactions(unsynced, syncUserRef.current.id)
+            : Promise.resolve(),
+          accountsRef.current.length > 0
+            ? pushAccounts(accountsRef.current, syncUserRef.current.id)
+            : Promise.resolve(),
         ]);
         for (const t of unsynced) await markTransactionSynced(t.id);
         if (unsynced.length > 0) {
           setTransactions((prev) =>
-            prev.map((t) => (unsynced.some((u) => u.id === t.id) ? { ...t, synced: 1 as const } : t))
+            prev.map((t) =>
+              unsynced.some((u) => u.id === t.id)
+                ? { ...t, synced: 1 as const }
+                : t,
+            ),
           );
         }
       } catch {
@@ -137,7 +198,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     await insertAccount(account);
     setAccounts((prev) => [...prev, account]);
     if (syncUserRef.current) {
-      try { await pushAccounts([account], syncUserRef.current.id); } catch { /* retry on next sync */ }
+      try {
+        await pushAccounts([account], syncUserRef.current.id);
+      } catch {
+        /* retry on next sync */
+      }
     }
   };
 
@@ -146,14 +211,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     // Update account balance
     const account = accounts.find((a) => a.id === transaction.account_id);
     if (account) {
-      const delta = transaction.type === "income" ? transaction.amount : -transaction.amount;
+      const delta =
+        transaction.type === "income"
+          ? transaction.amount
+          : -transaction.amount;
       const newBalance = account.balance + delta;
       await updateAccountBalance(account.id, newBalance);
       setAccounts((prev) =>
-        prev.map((a) => (a.id === account.id ? { ...a, balance: newBalance } : a))
+        prev.map((a) =>
+          a.id === account.id ? { ...a, balance: newBalance } : a,
+        ),
       );
     }
     setTransactions((prev) => [transaction, ...prev]);
+
+    // Budget Alert Check!
+    if (settings.find((s) => s.key === "budget_alerts")?.value === "1") {
+      await checkBudgetAlerts(
+        transaction,
+        budgetGoals,
+        transactions,
+        categories,
+      );
+    }
   };
 
   const deleteTransaction = async (id: string) => {
@@ -166,7 +246,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         const newBalance = account.balance + delta;
         await updateAccountBalance(account.id, newBalance);
         setAccounts((prev) =>
-          prev.map((a) => (a.id === account.id ? { ...a, balance: newBalance } : a))
+          prev.map((a) =>
+            a.id === account.id ? { ...a, balance: newBalance } : a,
+          ),
         );
       }
     }
@@ -216,7 +298,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  const loginSync = async (email: string, password: string): Promise<string | null> => {
+  const loginSync = async (
+    email: string,
+    password: string,
+  ): Promise<string | null> => {
     const error = await signInSupabase(email, password);
     if (error) return error;
     const user = await getSupabaseUser();
@@ -225,7 +310,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return null;
   };
 
-  const signUpSync = async (email: string, password: string): Promise<string | null> => {
+  const signUpSync = async (
+    email: string,
+    password: string,
+  ): Promise<string | null> => {
     const error = await signUpSupabase(email, password);
     if (error) return error;
     const user = await getSupabaseUser();
@@ -266,7 +354,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }}
     >
       <AppContext.Provider
-        value={{ accounts, categories, transactions, budgetGoals, userProfile, settings, isLoading, syncUser }}
+        value={{
+          accounts,
+          categories,
+          transactions,
+          budgetGoals,
+          userProfile,
+          settings,
+          isLoading,
+          syncUser,
+        }}
       >
         {children}
       </AppContext.Provider>
@@ -282,6 +379,7 @@ export function useAppState() {
 
 export function useAppActions() {
   const context = useContext(AppActionsContext);
-  if (!context) throw new Error("useAppActions must be used within AppProvider");
+  if (!context)
+    throw new Error("useAppActions must be used within AppProvider");
   return context;
 }

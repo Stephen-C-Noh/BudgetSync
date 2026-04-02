@@ -1,8 +1,16 @@
-import "react-native-url-polyfill/auto";
 import { AppProvider, useAppState } from "@/context/AppContext";
 import { AuthContext } from "@/context/AuthContext";
-import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
+import { configureNotificationHandler } from "@/lib/notifications";
+import {
+  Stack,
+  useRootNavigationState,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import { useEffect, useState } from "react";
+import "react-native-url-polyfill/auto";
+
+configureNotificationHandler();
 
 function InnerLayout() {
   const { settings, isLoading } = useAppState();
@@ -10,7 +18,6 @@ function InnerLayout() {
   const router = useRouter();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
-
   useEffect(() => {
     if (!navigationState?.key || isLoading) return;
 
@@ -26,7 +33,9 @@ function InnerLayout() {
   }, [isLoading, isAuthenticated, navigationState?.key]);
 
   return (
-    <AuthContext.Provider value={{ onAuthenticated: () => setIsAuthenticated(true) }}>
+    <AuthContext.Provider
+      value={{ onAuthenticated: () => setIsAuthenticated(true) }}
+    >
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" />
