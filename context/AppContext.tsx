@@ -16,6 +16,7 @@ import {
   insertTransaction,
   markTransactionSynced,
   updateAccountBalance,
+  updateTransaction as dbUpdateTransaction,
   upsertSetting,
   upsertUserProfile,
 } from "@/lib/db";
@@ -53,6 +54,7 @@ interface AppContextType {
 interface AppActionsType {
   addAccount: (account: Account) => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
+  updateTransaction: (transaction: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
@@ -172,6 +174,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const updateTransaction = async (tx: Transaction) => {
+    await dbUpdateTransaction(tx);
+    // Reload accounts from DB since the atomic update already adjusted balances
+    const updatedAccounts = await getAccounts();
+    setAccounts(updatedAccounts);
+    setTransactions((prev) => prev.map((t) => (t.id === tx.id ? tx : t)));
+  };
+
   const addCategory = async (category: Category) => {
     await insertCategory(category);
     setCategories((prev) => [...prev, category]);
@@ -241,6 +251,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         addAccount,
         addTransaction,
+        updateTransaction,
         deleteTransaction,
         addCategory,
         deleteCategory,

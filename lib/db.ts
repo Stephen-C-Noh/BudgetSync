@@ -184,6 +184,50 @@ export async function deleteTransaction(id: string): Promise<void> {
   await database.runAsync("DELETE FROM transactions WHERE id = ?", [id]);
 }
 
+export async function updateTransaction(transaction: Transaction): Promise<void> {
+  const database = await db;
+  await database.execAsync("BEGIN");
+  try {
+    const old = await database.getFirstAsync<Transaction>(
+      "SELECT * FROM transactions WHERE id = ?",
+      [transaction.id]
+    );
+    if (!old) {
+      await database.execAsync("ROLLBACK");
+      return;
+    }
+    // Reverse old balance effect
+    const oldDelta = old.type === "income" ? -old.amount : old.amount;
+    await database.runAsync(
+      "UPDATE accounts SET balance = balance + ? WHERE id = ?",
+      [oldDelta, old.account_id]
+    );
+    // Apply new balance effect
+    const newDelta = transaction.type === "income" ? transaction.amount : -transaction.amount;
+    await database.runAsync(
+      "UPDATE accounts SET balance = balance + ? WHERE id = ?",
+      [newDelta, transaction.account_id]
+    );
+    // Update the transaction record
+    await database.runAsync(
+      "UPDATE transactions SET account_id=?, category_id=?, type=?, amount=?, note=?, date=? WHERE id=?",
+      [
+        transaction.account_id,
+        transaction.category_id,
+        transaction.type,
+        transaction.amount,
+        transaction.note ?? null,
+        transaction.date,
+        transaction.id,
+      ]
+    );
+    await database.execAsync("COMMIT");
+  } catch (e) {
+    await database.execAsync("ROLLBACK");
+    throw e;
+  }
+}
+
 // ─── Budget Goals ─────────────────────────────────────────────────────────────
 
 export async function getBudgetGoals(): Promise<BudgetGoal[]> {
