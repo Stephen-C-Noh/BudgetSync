@@ -121,11 +121,7 @@ interface ThemeContextType {
   toggleTheme: () => Promise<void>;
 }
 
-const ThemeContext = createContext<ThemeContextType>({
-  colors: darkColors,
-  colorScheme: "dark",
-  toggleTheme: async () => {},
-});
+const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
@@ -152,5 +148,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useTheme() {
-  return useContext(ThemeContext);
+  const context = useContext(ThemeContext);
+  if (!context) throw new Error("useTheme must be used within ThemeProvider");
+  return context;
 }
