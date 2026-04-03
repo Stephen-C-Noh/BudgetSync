@@ -1,9 +1,10 @@
 import { useAppActions, useAppState } from "@/context/AppContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
 import { Account } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   ScrollView,
@@ -27,9 +28,11 @@ const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "KRW", "CAD", "AUD"];
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { userProfile } = useAppState();
   const { updateUserProfile, addAccount, updateSetting } = useAppActions();
   const { accounts } = useAppState();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [step, setStep] = useState(1);
 
@@ -96,7 +99,7 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <View style={styles.logoCircle}>
-            <Ionicons name="wallet-outline" size={52} color="#00D9FF" />
+            <Ionicons name="wallet-outline" size={52} color={colors.accent} />
           </View>
           <Text style={styles.appName}>BudgetSync</Text>
           <Text style={styles.tagline}>Track smarter. Spend better.</Text>
@@ -129,7 +132,7 @@ export default function OnboardingScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.stepIconCircle}>
-              <Ionicons name="person-outline" size={36} color="#00D9FF" />
+              <Ionicons name="person-outline" size={36} color={colors.accent} />
             </View>
             <Text style={styles.stepTitle}>What's your name?</Text>
             <Text style={styles.stepSubtitle}>
@@ -141,7 +144,7 @@ export default function OnboardingScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="e.g. Alex Johnson"
-                placeholderTextColor="#4A5568"
+                placeholderTextColor={colors.textPlaceholder}
                 autoCapitalize="words"
                 value={name}
                 onChangeText={setName}
@@ -176,7 +179,7 @@ export default function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.stepIconCircle}>
-            <Ionicons name="card-outline" size={36} color="#00D9FF" />
+            <Ionicons name="card-outline" size={36} color={colors.accent} />
           </View>
           <Text style={styles.stepTitle}>Add your first account</Text>
           <Text style={styles.stepSubtitle}>
@@ -188,7 +191,7 @@ export default function OnboardingScreen() {
             <TextInput
               style={styles.input}
               placeholder="e.g. Main Checking"
-              placeholderTextColor="#4A5568"
+              placeholderTextColor={colors.textPlaceholder}
               value={accountName}
               onChangeText={setAccountName}
             />
@@ -221,7 +224,7 @@ export default function OnboardingScreen() {
             <TextInput
               style={styles.input}
               placeholder="0.00"
-              placeholderTextColor="#4A5568"
+              placeholderTextColor={colors.textPlaceholder}
               keyboardType="decimal-pad"
               value={balance}
               onChangeText={setBalance}
@@ -231,7 +234,7 @@ export default function OnboardingScreen() {
             <TextInput
               style={styles.input}
               placeholder="e.g. 4821"
-              placeholderTextColor="#4A5568"
+              placeholderTextColor={colors.textPlaceholder}
               keyboardType="numeric"
               maxLength={4}
               value={last4}
@@ -276,162 +279,164 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1519" },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "rgba(0,217,255,0.08)",
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 28,
-  },
-  appName: {
-    color: "#FFF",
-    fontSize: 32,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  tagline: {
-    color: "#00D9FF",
-    fontSize: 17,
-    fontWeight: "600",
-    marginBottom: 14,
-    textAlign: "center",
-  },
-  subtitle: {
-    color: "#7A869A",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 48,
-    paddingHorizontal: 8,
-  },
-  primaryBtn: {
-    backgroundColor: "#00D9FF",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignSelf: "stretch",
-    alignItems: "center",
-    marginTop: 12,
-  },
-  primaryBtnText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
-  skipBtn: {
-    paddingVertical: 14,
-    alignSelf: "stretch",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  skipBtnText: { color: "#7A869A", fontSize: 15, fontWeight: "500" },
-  stepHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 4,
-  },
-  stepIndicator: {
-    color: "#00D9FF",
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    alignItems: "center",
-  },
-  stepIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(0,217,255,0.08)",
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  stepTitle: {
-    color: "#FFF",
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  stepSubtitle: {
-    color: "#7A869A",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 28,
-    paddingHorizontal: 8,
-  },
-  form: { alignSelf: "stretch", marginBottom: 8 },
-  label: {
-    color: "#7A869A",
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    backgroundColor: "#1C252E",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: "#FFF",
-    fontSize: 15,
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 4,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#1C252E",
-    borderWidth: 1,
-    borderColor: "#2A333D",
-  },
-  chipActive: {
-    backgroundColor: "rgba(0,217,255,0.12)",
-    borderColor: "#00D9FF",
-  },
-  chipIcon: { fontSize: 16 },
-  chipText: { color: "#7A869A", fontSize: 14, fontWeight: "600" },
-  chipTextActive: { color: "#00D9FF" },
-  currencyRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 4,
-  },
-  currencyChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#1C252E",
-    borderWidth: 1,
-    borderColor: "#2A333D",
-  },
-  currencyChipActive: {
-    backgroundColor: "rgba(0,217,255,0.12)",
-    borderColor: "#00D9FF",
-  },
-  currencyChipText: { color: "#7A869A", fontSize: 14, fontWeight: "600" },
-  currencyChipTextActive: { color: "#00D9FF" },
-});
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    centered: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 32,
+    },
+    logoCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 28,
+    },
+    appName: {
+      color: colors.textPrimary,
+      fontSize: 32,
+      fontWeight: "800",
+      marginBottom: 8,
+    },
+    tagline: {
+      color: colors.accent,
+      fontSize: 17,
+      fontWeight: "600",
+      marginBottom: 14,
+      textAlign: "center",
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      textAlign: "center",
+      lineHeight: 22,
+      marginBottom: 48,
+      paddingHorizontal: 8,
+    },
+    primaryBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 14,
+      paddingVertical: 16,
+      alignSelf: "stretch",
+      alignItems: "center",
+      marginTop: 12,
+    },
+    primaryBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+    skipBtn: {
+      paddingVertical: 14,
+      alignSelf: "stretch",
+      alignItems: "center",
+      marginTop: 4,
+    },
+    skipBtnText: { color: colors.textSecondary, fontSize: 15, fontWeight: "500" },
+    stepHeader: {
+      paddingHorizontal: 24,
+      paddingTop: 16,
+      paddingBottom: 4,
+    },
+    stepIndicator: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+    },
+    scrollContent: {
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      alignItems: "center",
+    },
+    stepIconCircle: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    stepTitle: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      fontWeight: "700",
+      marginBottom: 10,
+      textAlign: "center",
+    },
+    stepSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      textAlign: "center",
+      lineHeight: 20,
+      marginBottom: 28,
+      paddingHorizontal: 8,
+    },
+    form: { alignSelf: "stretch", marginBottom: 8 },
+    label: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+      marginBottom: 6,
+      marginTop: 12,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      color: colors.textPrimary,
+      fontSize: 15,
+    },
+    chipRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 4,
+    },
+    chip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: {
+      backgroundColor: colors.accentLight,
+      borderColor: colors.accent,
+    },
+    chipIcon: { fontSize: 16 },
+    chipText: { color: colors.textSecondary, fontSize: 14, fontWeight: "600" },
+    chipTextActive: { color: colors.accent },
+    currencyRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 4,
+    },
+    currencyChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    currencyChipActive: {
+      backgroundColor: colors.accentLight,
+      borderColor: colors.accent,
+    },
+    currencyChipText: { color: colors.textSecondary, fontSize: 14, fontWeight: "600" },
+    currencyChipTextActive: { color: colors.accent },
+  });
+}
