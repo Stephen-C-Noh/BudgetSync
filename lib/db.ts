@@ -1,6 +1,13 @@
 import * as Crypto from "expo-crypto";
 import * as SQLite from "expo-sqlite";
-import { Account, BudgetGoal, Category, Setting, Transaction, UserProfile } from "./types";
+import {
+  Account,
+  BudgetGoal,
+  Category,
+  Setting,
+  Transaction,
+  UserProfile,
+} from "./types";
 
 const db = SQLite.openDatabaseAsync("budgetsync.db");
 
@@ -65,71 +72,93 @@ export async function initializeDatabase() {
 
   // Seed default categories
   const catResult = await database.getFirstAsync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM categories"
+    "SELECT COUNT(*) as count FROM categories",
   );
   if (catResult?.count === 0) {
     const defaultCategories = [
-      { name: "Salary",        type: "income",  icon: "💰", is_custom: 0 },
-      { name: "Investment",    type: "income",  icon: "📈", is_custom: 0 },
-      { name: "Bonus",         type: "income",  icon: "🎁", is_custom: 0 },
-      { name: "Freelance",     type: "income",  icon: "🧑‍💻", is_custom: 0 },
-      { name: "Groceries",     type: "expense", icon: "🛒", is_custom: 0 },
-      { name: "Dining",        type: "expense", icon: "🍽️", is_custom: 0 },
-      { name: "Transport",     type: "expense", icon: "🚗", is_custom: 0 },
-      { name: "Shopping",      type: "expense", icon: "🛍️", is_custom: 0 },
-      { name: "Rent",          type: "expense", icon: "🏠", is_custom: 0 },
+      { name: "Salary", type: "income", icon: "💰", is_custom: 0 },
+      { name: "Investment", type: "income", icon: "📈", is_custom: 0 },
+      { name: "Bonus", type: "income", icon: "🎁", is_custom: 0 },
+      { name: "Freelance", type: "income", icon: "🧑‍💻", is_custom: 0 },
+      { name: "Groceries", type: "expense", icon: "🛒", is_custom: 0 },
+      { name: "Dining", type: "expense", icon: "🍽️", is_custom: 0 },
+      { name: "Transport", type: "expense", icon: "🚗", is_custom: 0 },
+      { name: "Shopping", type: "expense", icon: "🛍️", is_custom: 0 },
+      { name: "Rent", type: "expense", icon: "🏠", is_custom: 0 },
       { name: "Entertainment", type: "expense", icon: "🎬", is_custom: 0 },
-      { name: "Utilities",     type: "expense", icon: "💡", is_custom: 0 },
+      { name: "Utilities", type: "expense", icon: "💡", is_custom: 0 },
     ];
     for (const cat of defaultCategories) {
       await database.runAsync(
         "INSERT INTO categories (id, name, type, icon, is_custom) VALUES (?, ?, ?, ?, ?)",
-        [Crypto.randomUUID(), cat.name, cat.type, cat.icon, cat.is_custom]
+        [Crypto.randomUUID(), cat.name, cat.type, cat.icon, cat.is_custom],
       );
     }
   }
 
-  // Seed default account
-  const accResult = await database.getFirstAsync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM accounts"
-  );
-  if (accResult?.count === 0) {
-    await database.runAsync(
-      "INSERT INTO accounts (id, name, type, last4, balance, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [Crypto.randomUUID(), "Main Account", "bank", "4821", 0, "USD", new Date().toISOString()]
-    );
-  }
-
   // Seed default user profile
   const profileResult = await database.getFirstAsync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM user_profile"
+    "SELECT COUNT(*) as count FROM user_profile",
   );
   if (profileResult?.count === 0) {
     await database.runAsync(
       "INSERT INTO user_profile (id, name, email, currency, language) VALUES (?, ?, ?, ?, ?)",
-      [Crypto.randomUUID(), "Alex Johnson", "alex.johnson@budgetsync.io", "USD", "EN-US"]
+      [
+        Crypto.randomUUID(),
+        "",
+        "",
+        "CAD",
+        "EN-US",
+      ],
     );
   }
+
+  // Seed settings — INSERT OR IGNORE preserves any value the user already saved
+  await database.runAsync(
+    "INSERT OR IGNORE INTO settings (key, value) VALUES ('budget_alerts', '0')",
+  );
+  await database.runAsync(
+    "INSERT OR IGNORE INTO settings (key, value) VALUES ('weekly_digest', '0')",
+  );
+  await database.runAsync(
+    "INSERT OR IGNORE INTO settings (key, value) VALUES ('last_digest_at', '')",
+  );
 }
 
 // ─── Accounts ────────────────────────────────────────────────────────────────
 
 export async function getAccounts(): Promise<Account[]> {
   const database = await db;
-  return database.getAllAsync<Account>("SELECT * FROM accounts ORDER BY created_at ASC");
+  return database.getAllAsync<Account>(
+    "SELECT * FROM accounts ORDER BY created_at ASC",
+  );
 }
 
 export async function insertAccount(account: Account): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT INTO accounts (id, name, type, last4, balance, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [account.id, account.name, account.type, account.last4 ?? null, account.balance, account.currency, account.created_at]
+    [
+      account.id,
+      account.name,
+      account.type,
+      account.last4 ?? null,
+      account.balance,
+      account.currency,
+      account.created_at,
+    ],
   );
 }
 
-export async function updateAccountBalance(id: string, balance: number): Promise<void> {
+export async function updateAccountBalance(
+  id: string,
+  balance: number,
+): Promise<void> {
   const database = await db;
-  await database.runAsync("UPDATE accounts SET balance = ? WHERE id = ?", [balance, id]);
+  await database.runAsync("UPDATE accounts SET balance = ? WHERE id = ?", [
+    balance,
+    id,
+  ]);
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
@@ -143,7 +172,13 @@ export async function insertCategory(category: Category): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT INTO categories (id, name, type, icon, is_custom) VALUES (?, ?, ?, ?, ?)",
-    [category.id, category.name, category.type, category.icon ?? null, category.is_custom]
+    [
+      category.id,
+      category.name,
+      category.type,
+      category.icon ?? null,
+      category.is_custom,
+    ],
   );
 }
 
@@ -157,11 +192,13 @@ export async function deleteCategory(id: string): Promise<void> {
 export async function getTransactions(): Promise<Transaction[]> {
   const database = await db;
   return database.getAllAsync<Transaction>(
-    "SELECT * FROM transactions ORDER BY created_at DESC"
+    "SELECT * FROM transactions ORDER BY created_at DESC",
   );
 }
 
-export async function insertTransaction(transaction: Transaction): Promise<void> {
+export async function insertTransaction(
+  transaction: Transaction,
+): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -175,7 +212,7 @@ export async function insertTransaction(transaction: Transaction): Promise<void>
       transaction.date,
       transaction.created_at,
       transaction.synced,
-    ]
+    ],
   );
 }
 
@@ -184,13 +221,15 @@ export async function deleteTransaction(id: string): Promise<void> {
   await database.runAsync("DELETE FROM transactions WHERE id = ?", [id]);
 }
 
-export async function updateTransaction(transaction: Transaction): Promise<void> {
+export async function updateTransaction(
+  transaction: Transaction,
+): Promise<void> {
   const database = await db;
   await database.execAsync("BEGIN");
   try {
     const old = await database.getFirstAsync<Transaction>(
       "SELECT * FROM transactions WHERE id = ?",
-      [transaction.id]
+      [transaction.id],
     );
     if (!old) {
       await database.execAsync("ROLLBACK");
@@ -200,13 +239,14 @@ export async function updateTransaction(transaction: Transaction): Promise<void>
     const oldDelta = old.type === "income" ? -old.amount : old.amount;
     await database.runAsync(
       "UPDATE accounts SET balance = balance + ? WHERE id = ?",
-      [oldDelta, old.account_id]
+      [oldDelta, old.account_id],
     );
     // Apply new balance effect
-    const newDelta = transaction.type === "income" ? transaction.amount : -transaction.amount;
+    const newDelta =
+      transaction.type === "income" ? transaction.amount : -transaction.amount;
     await database.runAsync(
       "UPDATE accounts SET balance = balance + ? WHERE id = ?",
-      [newDelta, transaction.account_id]
+      [newDelta, transaction.account_id],
     );
     // Update the transaction record
     await database.runAsync(
@@ -219,7 +259,7 @@ export async function updateTransaction(transaction: Transaction): Promise<void>
         transaction.note ?? null,
         transaction.date,
         transaction.id,
-      ]
+      ],
     );
     await database.execAsync("COMMIT");
   } catch (e) {
@@ -239,7 +279,13 @@ export async function insertBudgetGoal(goal: BudgetGoal): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT INTO budget_goals (id, category_id, limit_amount, period, created_at) VALUES (?, ?, ?, ?, ?)",
-    [goal.id, goal.category_id, goal.limit_amount, goal.period, goal.created_at]
+    [
+      goal.id,
+      goal.category_id,
+      goal.limit_amount,
+      goal.period,
+      goal.created_at,
+    ],
   );
 }
 
@@ -252,14 +298,22 @@ export async function deleteBudgetGoal(id: string): Promise<void> {
 
 export async function getUserProfile(): Promise<UserProfile | null> {
   const database = await db;
-  return database.getFirstAsync<UserProfile>("SELECT * FROM user_profile LIMIT 1");
+  return database.getFirstAsync<UserProfile>(
+    "SELECT * FROM user_profile LIMIT 1",
+  );
 }
 
 export async function upsertUserProfile(profile: UserProfile): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT OR REPLACE INTO user_profile (id, name, email, currency, language) VALUES (?, ?, ?, ?, ?)",
-    [profile.id, profile.name, profile.email, profile.currency, profile.language]
+    [
+      profile.id,
+      profile.name,
+      profile.email,
+      profile.currency,
+      profile.language,
+    ],
   );
 }
 
@@ -268,16 +322,20 @@ export async function upsertUserProfile(profile: UserProfile): Promise<void> {
 export async function getUnsyncedTransactions(): Promise<Transaction[]> {
   const database = await db;
   return database.getAllAsync<Transaction>(
-    "SELECT * FROM transactions WHERE synced = 0"
+    "SELECT * FROM transactions WHERE synced = 0",
   );
 }
 
 export async function markTransactionSynced(id: string): Promise<void> {
   const database = await db;
-  await database.runAsync("UPDATE transactions SET synced = 1 WHERE id = ?", [id]);
+  await database.runAsync("UPDATE transactions SET synced = 1 WHERE id = ?", [
+    id,
+  ]);
 }
 
-export async function upsertTransaction(transaction: Transaction): Promise<void> {
+export async function upsertTransaction(
+  transaction: Transaction,
+): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT OR REPLACE INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -291,7 +349,7 @@ export async function upsertTransaction(transaction: Transaction): Promise<void>
       transaction.date,
       transaction.created_at,
       transaction.synced,
-    ]
+    ],
   );
 }
 
@@ -299,7 +357,15 @@ export async function upsertAccount(account: Account): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT OR REPLACE INTO accounts (id, name, type, last4, balance, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [account.id, account.name, account.type, account.last4 ?? null, account.balance, account.currency, account.created_at]
+    [
+      account.id,
+      account.name,
+      account.type,
+      account.last4 ?? null,
+      account.balance,
+      account.currency,
+      account.created_at,
+    ],
   );
 }
 
@@ -314,6 +380,6 @@ export async function upsertSetting(key: string, value: string): Promise<void> {
   const database = await db;
   await database.runAsync(
     "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-    [key, value]
+    [key, value],
   );
 }
