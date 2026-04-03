@@ -41,7 +41,7 @@ export default function OnboardingScreen() {
   const [accountType, setAccountType] = useState<Account["type"]>("bank");
   const [last4, setLast4] = useState("");
   const [balance, setBalance] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(userProfile.currency ?? "CAD");
 
   async function finishOnboarding() {
     if (accounts.length === 0) {
