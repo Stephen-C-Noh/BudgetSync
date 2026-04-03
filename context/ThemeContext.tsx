@@ -2,6 +2,9 @@ import { useAppActions, useAppState } from "@/context/AppContext";
 import React, { createContext, useContext } from "react";
 import { useColorScheme } from "react-native";
 
+// Chart series colors are visual-only and work on both dark and light backgrounds
+const SHARED_CHART_COLORS = ["#21C8F6", "#7A6CFF", "#4CD6B8", "#F3C94D", "#FF7C7C", "#A37CFF", "#2BE38B"];
+
 export const darkColors = {
   background: "#0B1519",
   surface: "#1C252E",
@@ -42,6 +45,18 @@ export const darkColors = {
   bgCredit: "#3D242B",
   statsChip: "#122433",
   statsProgressTrack: "#163246",
+  surfaceDisabled: "rgba(58, 74, 90, 0.3)",
+  chartColors: SHARED_CHART_COLORS,
+  chatHeader: "#0A1B28",
+  chatBorder: "#143042",
+  chatInputBorder: "#123650",
+  chatInputBg: "#0B1830",
+  chatBotIconBg: "#083243",
+  chatBotBubble: "#202B46",
+  chatUserIconBg: "#374760",
+  chatCardBg: "#0E2030",
+  chatCardBorder: "#1A3A50",
+  accentRgb: "0, 217, 255",
 };
 
 export const lightColors: typeof darkColors = {
@@ -84,6 +99,18 @@ export const lightColors: typeof darkColors = {
   bgCredit: "#FFEBEE",
   statsChip: "#F0F4F8",
   statsProgressTrack: "#E1E2E4",
+  surfaceDisabled: "rgba(154, 160, 168, 0.2)",
+  chartColors: SHARED_CHART_COLORS,
+  chatHeader: "#F0F4F8",
+  chatBorder: "#E1E2E4",
+  chatInputBorder: "#D0D7E0",
+  chatInputBg: "#FFFFFF",
+  chatBotIconBg: "#E0F2F7",
+  chatBotBubble: "#F0F4F8",
+  chatUserIconBg: "#CBD9E7",
+  chatCardBg: "#FFFFFF",
+  chatCardBorder: "#E1E2E4",
+  accentRgb: "0, 188, 212",
 };
 
 export type Colors = typeof darkColors;

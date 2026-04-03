@@ -1,3 +1,5 @@
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MONTH_NAMES, WEEK_DAYS, buildCalendarDays, formatDate } from "@/lib/dateUtils";
@@ -11,9 +13,11 @@ type Props = {
 };
 
 export default function CalendarView({ transactions, categories }: Props) {
+  const { colors } = useTheme();
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [selected, setSelected] = useState<string | null>(null);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const calDays = useMemo(() => buildCalendarDays(calYear, calMonth), [calYear, calMonth]);
@@ -73,7 +77,7 @@ export default function CalendarView({ transactions, categories }: Props) {
               <Text style={[styles.calDayText, isToday && styles.calDayToday, isSelected && styles.calDaySelected]}>
                 {day}
               </Text>
-              {hasTx && <View style={[styles.calDot, isSelected && { backgroundColor: "#0B1519" }]} />}
+              {hasTx && <View style={[styles.calDot, isSelected && { backgroundColor: colors.onAccent }]} />}
             </TouchableOpacity>
           );
         })}
@@ -97,17 +101,19 @@ export default function CalendarView({ transactions, categories }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  calWeekRow: { flexDirection: "row", marginBottom: 6 },
-  calWeekLabel: { width: "14.28%", textAlign: "center", color: "#7A869A", fontSize: 12, fontWeight: "600" },
-  calGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 16 },
-  calCell: { width: "14.28%", height: 44, alignItems: "center", justifyContent: "center" },
-  calCellSelected: { backgroundColor: "#00D4FF", borderRadius: 10 },
-  calDayText: { color: "#fff", fontSize: 14 },
-  calDayToday: { color: "#00D4FF", fontWeight: "700" },
-  calDaySelected: { color: "#0B1519", fontWeight: "700" },
-  calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#00D4FF", marginTop: 2 },
-  sectionTitle: { color: "#fff", marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-  emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
-});
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    calWeekRow: { flexDirection: "row", marginBottom: 6 },
+    calWeekLabel: { width: "14.28%", textAlign: "center", color: colors.textSecondary, fontSize: 12, fontWeight: "600" },
+    calGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 16 },
+    calCell: { width: "14.28%", height: 44, alignItems: "center", justifyContent: "center" },
+    calCellSelected: { backgroundColor: colors.accent, borderRadius: 10 },
+    calDayText: { color: colors.textPrimary, fontSize: 14 },
+    calDayToday: { color: colors.accent, fontWeight: "700" },
+    calDaySelected: { color: colors.onAccent, fontWeight: "700" },
+    calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent, marginTop: 2 },
+    sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
+  });
+}

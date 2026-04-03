@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAppActions } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { authenticate, isBiometricAvailable, setPIN } from "@/lib/auth";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -25,11 +27,13 @@ type Stage = "enter" | "confirm";
 export default function SetPinScreen() {
   const router = useRouter();
   const { updateSetting } = useAppActions();
+  const { colors } = useTheme();
   const [stage, setStage] = useState<Stage>("enter");
   const [firstPin, setFirstPin] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   function handleDigit(digit: string) {
     if (isSaving || pin.length >= PIN_LENGTH) return;
@@ -67,7 +71,6 @@ export default function SetPinScreen() {
     setIsSaving(true);
     await setPIN(confirmedPin);
 
-    // Optionally confirm biometrics work — proceed regardless of result
     const available = await isBiometricAvailable();
     if (available) {
       await authenticate("Confirm to enable biometrics");
@@ -87,7 +90,7 @@ export default function SetPinScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#00D9FF" />
+          <Ionicons name="arrow-back" size={24} color={colors.accent} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Security Setup</Text>
         <View style={{ width: 24, marginRight: 15 }} />
@@ -95,7 +98,7 @@ export default function SetPinScreen() {
 
       <View style={styles.content}>
         <View style={styles.iconWrapper}>
-          <Ionicons name="keypad" size={40} color="#00D9FF" />
+          <Ionicons name="keypad" size={40} color={colors.accent} />
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
@@ -113,7 +116,7 @@ export default function SetPinScreen() {
         {error !== "" && <Text style={styles.errorText}>{error}</Text>}
 
         {isSaving ? (
-          <ActivityIndicator color="#00D4FF" size="large" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 40 }} />
         ) : (
           <View style={styles.numpad}>
             {NUMPAD.map((row, rowIdx) => (
@@ -130,7 +133,7 @@ export default function SetPinScreen() {
                         onPress={handleDelete}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="backspace-outline" size={24} color="#FFF" />
+                        <Ionicons name="backspace-outline" size={24} color={colors.textPrimary} />
                       </TouchableOpacity>
                     );
                   }
@@ -154,55 +157,57 @@ export default function SetPinScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1519" },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 15,
-  },
-  backBtn: { marginLeft: 15, paddingRight: 10 },
-  headerTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 15,
+    },
+    backBtn: { marginLeft: 15, paddingRight: 10 },
+    headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700" },
 
-  content: { flex: 1, alignItems: "center", paddingTop: 30, paddingHorizontal: 30 },
-  iconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(0, 217, 255, 0.08)",
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  title: { color: "#FFF", fontSize: 22, fontWeight: "700", marginBottom: 8 },
-  subtitle: { color: "#7A869A", fontSize: 14, textAlign: "center", marginBottom: 36 },
+    content: { flex: 1, alignItems: "center", paddingTop: 30, paddingHorizontal: 30 },
+    iconWrapper: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    title: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", marginBottom: 8 },
+    subtitle: { color: colors.textSecondary, fontSize: 14, textAlign: "center", marginBottom: 36 },
 
-  dotsRow: { flexDirection: "row", gap: 20, marginBottom: 16 },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    backgroundColor: "transparent",
-  },
-  dotFilled: { backgroundColor: "#00D9FF" },
+    dotsRow: { flexDirection: "row", gap: 20, marginBottom: 16 },
+    dot: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      backgroundColor: "transparent",
+    },
+    dotFilled: { backgroundColor: colors.accent },
 
-  errorText: { color: "#FF4D4D", fontSize: 13, marginBottom: 12, textAlign: "center" },
+    errorText: { color: colors.danger, fontSize: 13, marginBottom: 12, textAlign: "center" },
 
-  numpad: { marginTop: 24, width: "100%", maxWidth: 300 },
-  numpadRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
-  numpadKey: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#1C252E",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  numpadKeyEmpty: { width: 80, height: 80 },
-  numpadKeyText: { color: "#FFF", fontSize: 24, fontWeight: "600" },
-});
+    numpad: { marginTop: 24, width: "100%", maxWidth: 300 },
+    numpadRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+    numpadKey: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.surface,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    numpadKeyEmpty: { width: 80, height: 80 },
+    numpadKeyText: { color: colors.textPrimary, fontSize: 24, fontWeight: "600" },
+  });
+}

@@ -1,4 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -15,8 +17,10 @@ type Props = {
 
 export default function HomeMonthlyView({ accounts, transactions, categories }: Props) {
   const router = useRouter();
+  const { colors } = useTheme();
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const totalBalance = useMemo(() => accounts.reduce((sum, a) => sum + a.balance, 0), [accounts]);
@@ -62,7 +66,7 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
         </Text>
         {primaryAccount && (
           <View style={styles.cardRow}>
-            <MaterialCommunityIcons name="credit-card-outline" size={16} color="rgba(0,0,0,0.55)" />
+            <MaterialCommunityIcons name="credit-card-outline" size={16} color={colors.onAccent} />
             <Text style={styles.cardText}>
               {primaryAccount.last4 ? `•••• ${primaryAccount.last4}` : primaryAccount.name}
             </Text>
@@ -73,8 +77,8 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
       <View style={styles.summaryRow}>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
-            <View style={[styles.tileIcon, { backgroundColor: "rgba(0, 200, 83, 0.12)" }]}>
-              <Ionicons name="arrow-down" size={16} color="#00C853" />
+            <View style={[styles.tileIcon, { backgroundColor: colors.incomeSubtle }]}>
+              <Ionicons name="arrow-down" size={16} color={colors.income} />
             </View>
             <Text style={styles.tileLabel}>Income</Text>
           </View>
@@ -84,8 +88,8 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
         </View>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
-            <View style={[styles.tileIcon, { backgroundColor: "rgba(255, 59, 48, 0.12)" }]}>
-              <Ionicons name="arrow-up" size={16} color="#FF3B30" />
+            <View style={[styles.tileIcon, { backgroundColor: colors.expenseSubtle }]}>
+              <Ionicons name="arrow-up" size={16} color={colors.expense} />
             </View>
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
@@ -96,7 +100,7 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
       </View>
 
       <TouchableOpacity style={styles.addButton} onPress={() => router.push("/add-transaction")} activeOpacity={0.85}>
-        <Ionicons name="add-circle-outline" size={20} color="#0B1519" style={{ marginRight: 8 }} />
+        <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
         <Text style={styles.addButtonText}>+ Add Transaction</Text>
       </TouchableOpacity>
 
@@ -117,29 +121,31 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
   );
 }
 
-const styles = StyleSheet.create({
-  balanceCard: { backgroundColor: "#00D4FF", borderRadius: 24, padding: 24, marginBottom: 20 },
-  balanceLabel: { color: "rgba(0,0,0,0.6)", fontSize: 14, fontWeight: "500" },
-  balanceAmount: { color: "#0B1519", fontSize: 36, fontWeight: "800", marginVertical: 8 },
-  cardRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  cardText: { color: "rgba(0,0,0,0.6)", fontSize: 13, marginLeft: 6 },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
-  summaryTile: { flex: 0.48, backgroundColor: "#1C252E", borderRadius: 20, padding: 16 },
-  tileIconRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
-  tileLabel: { color: "#7A869A", fontSize: 13, fontWeight: "500" },
-  tileAmount: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 4 },
-  addButton: {
-    backgroundColor: "#00D4FF",
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  addButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
-  sectionLabel: { color: "#7A869A", fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12 },
-  emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
-});
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    balanceCard: { backgroundColor: colors.accent, borderRadius: 24, padding: 24, marginBottom: 20 },
+    balanceLabel: { color: colors.onAccent, fontSize: 14, fontWeight: "500" },
+    balanceAmount: { color: colors.onAccent, fontSize: 36, fontWeight: "800", marginVertical: 8 },
+    cardRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+    cardText: { color: colors.onAccent, fontSize: 13, marginLeft: 6 },
+    summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
+    summaryTile: { flex: 0.48, backgroundColor: colors.surface, borderRadius: 20, padding: 16 },
+    tileIconRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+    tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
+    tileLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
+    tileAmount: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 4 },
+    addButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 16,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    addButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+    sectionLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
+  });
+}
