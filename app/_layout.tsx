@@ -35,7 +35,7 @@ function InnerLayout() {
     } else if (onboardingComplete && (!biometricsEnabled || isAuthenticated) && inAuthScreen) {
       router.replace("/(tabs)");
     }
-  }, [isLoading, isAuthenticated, navigationState?.key]);
+  }, [isLoading, isAuthenticated, navigationState?.key, settings, segments, router]);
 
   return (
     <AuthContext.Provider

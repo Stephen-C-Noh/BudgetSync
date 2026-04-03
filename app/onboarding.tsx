@@ -121,7 +121,7 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <View style={styles.stepHeader}>
-            <Text style={styles.stepIndicator}>Step 1 of 2</Text>
+            <Text style={styles.stepIndicator}>Step 2 of 3</Text>
           </View>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
@@ -168,7 +168,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.stepHeader}>
-          <Text style={styles.stepIndicator}>Step 2 of 2</Text>
+          <Text style={styles.stepIndicator}>Step 3 of 3</Text>
         </View>
         <ScrollView
           contentContainerStyle={styles.scrollContent}

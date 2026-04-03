@@ -105,9 +105,9 @@ export async function initializeDatabase() {
       "INSERT INTO user_profile (id, name, email, currency, language) VALUES (?, ?, ?, ?, ?)",
       [
         Crypto.randomUUID(),
-        "Alex Johnson",
-        "alex.johnson@budgetsync.io",
-        "USD",
+        "",
+        "",
+        "CAD",
         "EN-US",
       ],
     );

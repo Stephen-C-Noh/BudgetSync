@@ -229,12 +229,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Budget Alert Check!
     if (settings.find((s) => s.key === "budget_alerts")?.value === "1") {
-      await checkBudgetAlerts(
-        transaction,
-        budgetGoals,
-        transactions,
-        categories,
-      );
+      try {
+        await checkBudgetAlerts(
+          transaction,
+          budgetGoals,
+          transactions,
+          categories,
+        );
+      } catch {
+        /* notification failures should not block transaction creation */
+      }
     }
   };
 
