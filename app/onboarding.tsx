@@ -29,6 +29,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { userProfile } = useAppState();
   const { updateUserProfile, addAccount, updateSetting } = useAppActions();
+  const { accounts } = useAppState();
 
   const [step, setStep] = useState(1);
 
@@ -43,6 +44,16 @@ export default function OnboardingScreen() {
   const [currency, setCurrency] = useState("USD");
 
   async function finishOnboarding() {
+    if (accounts.length === 0) {
+      await addAccount({
+        id: Crypto.randomUUID(),
+        name: "Cash",
+        type: "cash",
+        balance: 0,
+        currency: "CAD",
+        created_at: new Date().toISOString(),
+      });
+    }
     await updateSetting("onboarding_complete", "1");
     router.replace("/(tabs)");
   }
@@ -56,7 +67,7 @@ export default function OnboardingScreen() {
 
   async function handleStep3Next() {
     if (accountName.trim()) {
-      const newAccount: Account = {
+      await addAccount({
         id: Crypto.randomUUID(),
         name: accountName.trim(),
         type: accountType,
@@ -64,10 +75,19 @@ export default function OnboardingScreen() {
         balance: parseFloat(balance) || 0,
         currency,
         created_at: new Date().toISOString(),
-      };
-      await addAccount(newAccount);
+      });
+    } else {
+      await addAccount({
+        id: Crypto.randomUUID(),
+        name: "Cash",
+        type: "cash",
+        balance: 0,
+        currency: "CAD",
+        created_at: new Date().toISOString(),
+      });
     }
-    await finishOnboarding();
+    await updateSetting("onboarding_complete", "1");
+    router.replace("/(tabs)");
   }
 
   // ── Step 1: Welcome ──────────────────────────────────────────────────────────
