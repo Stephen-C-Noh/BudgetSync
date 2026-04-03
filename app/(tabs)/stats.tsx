@@ -17,20 +17,6 @@ import Svg, { Circle } from "react-native-svg";
 const TOP_TABS = ["Overview", "Expenses", "Income"] as const;
 type TopTab = (typeof TOP_TABS)[number];
 
-const CHART_COLORS = ["#21C8F6", "#7A6CFF", "#4CD6B8", "#F3C94D", "#FF7C7C", "#A37CFF", "#2BE38B"];
-
-// Colors unique to this screen with no theme token equivalent
-const STATS_COLORS = {
-  chipActive: "#1C9DFF",
-  legendText: "#C8D4DE",
-  weekText: "#A2B4C3",
-  smallText: "#6E8596",
-  monthChipText: "#AFC2D3",
-  progressFill: "#22C8F6",
-  chartCenterLabel: "#738A9B",
-  barColor: "#21C8F6",
-};
-
 // Generate last N months as { label, year, month } objects
 function getRecentMonths(count: number) {
   const result = [];
@@ -98,9 +84,9 @@ export default function StatsScreen() {
       .map(([catId, amount], i) => ({
         label: categoryMap.get(catId)?.name ?? "Other",
         amount,
-        color: CHART_COLORS[i % CHART_COLORS.length],
+        color: colors.chartColors[i % colors.chartColors.length],
       }));
-  }, [filteredTxs, categoryMap]);
+  }, [filteredTxs, categoryMap, colors.chartColors]);
 
   const topCategory = breakdown[0]?.label ?? "—";
 
@@ -307,8 +293,8 @@ function createStyles(colors: Colors) {
 
     monthRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
     monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip },
-    monthChipActive: { backgroundColor: STATS_COLORS.chipActive },
-    monthChipText: { color: STATS_COLORS.monthChipText, fontSize: 12, fontWeight: "600" },
+    monthChipActive: { backgroundColor: colors.accent },
+    monthChipText: { color: colors.tabBarInactive, fontSize: 12, fontWeight: "600" },
     monthChipTextActive: { color: colors.textPrimary },
 
     summaryRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
@@ -317,7 +303,7 @@ function createStyles(colors: Colors) {
     summaryValue: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", marginBottom: 8 },
     noBudgetText: { color: colors.textSecondary, fontSize: 13 },
     progressTrack: { height: 8, marginTop: 8, overflow: "hidden", borderRadius: 999, backgroundColor: colors.statsProgressTrack },
-    progressFill: { height: "100%", borderRadius: 999, backgroundColor: STATS_COLORS.progressFill },
+    progressFill: { height: "100%", borderRadius: 999, backgroundColor: colors.accent },
 
     card: { padding: 16, marginBottom: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     cardTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", marginBottom: 14 },
@@ -326,21 +312,21 @@ function createStyles(colors: Colors) {
     chartContainer: { alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 22 },
     chartWrapper: { width: 190, height: 190, alignItems: "center", justifyContent: "center" },
     chartCenter: { position: "absolute", width: 118, alignItems: "center", justifyContent: "center" },
-    chartCenterLabel: { color: STATS_COLORS.chartCenterLabel, fontSize: 9, fontWeight: "700", letterSpacing: 1.1, marginBottom: 6 },
+    chartCenterLabel: { color: colors.textSecondary, fontSize: 9, fontWeight: "700", letterSpacing: 1.1, marginBottom: 6 },
     chartCenterValue: { maxWidth: 110, color: colors.textPrimary, fontSize: 14, fontWeight: "700", textAlign: "center" },
 
     legendList: { gap: 12 },
     legendRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     legendLeft: { flexDirection: "row", alignItems: "center" },
     legendDot: { width: 8, height: 8, borderRadius: 999, marginRight: 10 },
-    legendText: { color: STATS_COLORS.legendText, fontSize: 14 },
+    legendText: { color: colors.tabBarInactive, fontSize: 14 },
     legendAmount: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
 
     weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    weekSubtext: { color: STATS_COLORS.smallText, fontSize: 12 },
+    weekSubtext: { color: colors.textSecondary, fontSize: 12 },
     weekChart: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, marginTop: 10, paddingHorizontal: 8 },
     weekColumn: { alignItems: "center" },
-    bar: { width: 24, borderRadius: 10, marginBottom: 8, backgroundColor: STATS_COLORS.barColor },
-    weekLabel: { color: STATS_COLORS.weekText, fontSize: 12 },
+    bar: { width: 24, borderRadius: 10, marginBottom: 8, backgroundColor: colors.accent },
+    weekLabel: { color: colors.tabBarInactive, fontSize: 12 },
   });
 }

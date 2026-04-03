@@ -20,12 +20,12 @@ import { MONTH_NAMES } from "@/lib/dateUtils";
 import { Account } from "@/lib/types";
 import NavRow from "@/components/shared/NavRow";
 
-const ACCOUNT_TYPE_META: Record<string, { label: string; iconName: string; iconColor: string; bgColor: string }> = {
-  bank:        { label: "Cash & Bank",  iconName: "wallet-outline", iconColor: "#5BA4FC", bgColor: "#1A2E44" },
-  cash:        { label: "Cash & Bank",  iconName: "wallet-outline", iconColor: "#5BA4FC", bgColor: "#1A2E44" },
-  investment:  { label: "Investments",  iconName: "trending-up",    iconColor: "#A37CFF", bgColor: "#2A244D" },
-  credit_card: { label: "Credit Cards", iconName: "credit-card",    iconColor: "#FF7C7C", bgColor: "#3D242B" },
-};
+const ACCOUNT_TYPE_META = (colors: Colors): Record<string, { label: string; iconName: string; iconColor: string; bgColor: string }> => ({
+  bank:        { label: "Cash & Bank",  iconName: "wallet-outline", iconColor: colors.iconBank,        bgColor: colors.bgBank        },
+  cash:        { label: "Cash & Bank",  iconName: "wallet-outline", iconColor: colors.iconBank,        bgColor: colors.bgBank        },
+  investment:  { label: "Investments",  iconName: "trending-up",    iconColor: colors.iconInvestment,  bgColor: colors.bgInvestment  },
+  credit_card: { label: "Credit Cards", iconName: "credit-card",    iconColor: colors.iconCredit,      bgColor: colors.bgCredit      },
+});
 
 const ACCOUNT_TYPES: { key: Account["type"]; label: string }[] = [
   { key: "cash",        label: "Cash" },
@@ -43,6 +43,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
 
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+  const accountTypeMeta = useMemo(() => ACCOUNT_TYPE_META(colors), [colors]);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -171,7 +172,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         </View>
       ) : (
         Object.entries(grouped).map(([type, accs]) => {
-          const meta = ACCOUNT_TYPE_META[type] ?? ACCOUNT_TYPE_META.bank;
+          const meta = accountTypeMeta[type] ?? accountTypeMeta.bank;
           const groupBalance = accs.reduce((s, a) => s + a.balance, 0);
           const isCredit = type === "credit_card";
           return (

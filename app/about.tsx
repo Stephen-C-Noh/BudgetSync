@@ -163,7 +163,7 @@ function createStyles(colors: Colors) {
     card: { backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden", marginBottom: 16 },
 
     descriptionText: {
-      color: "#A0AABB",
+      color: colors.tabBarInactive,
       fontSize: 14,
       lineHeight: 22,
       padding: 20,

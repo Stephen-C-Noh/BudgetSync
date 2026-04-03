@@ -236,7 +236,7 @@ function createStyles(colors: Colors) {
       width: 70,
       height: 70,
       borderRadius: 35,
-      backgroundColor: "rgba(0, 217, 255, 0.05)",
+      backgroundColor: colors.accentSubtle,
       justifyContent: "center",
       alignItems: "center",
       borderWidth: 2,
@@ -301,7 +301,7 @@ function createStyles(colors: Colors) {
       borderColor: colors.border,
     },
     deleteBtn: {
-      backgroundColor: "rgba(255, 77, 77, 0.05)",
+      backgroundColor: colors.dangerSubtle,
       borderColor: colors.dangerBorder,
       marginTop: 15,
     },

@@ -169,7 +169,7 @@ function createStyles(colors: Colors) {
     card: { backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden" },
     profileContent: { flexDirection: "row", alignItems: "center", padding: 20 },
     avatarContainer: { position: "relative" },
-    avatarCircleLarge: { width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(0, 217, 255, 0.05)", justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: colors.accent },
+    avatarCircleLarge: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.accentSubtle, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: colors.accent },
     editBadgeLarge: { position: "absolute", bottom: 0, right: 0, backgroundColor: colors.accent, width: 24, height: 24, borderRadius: 12, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: colors.surface },
     menuItemRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
     menuLeft: { flexDirection: "row", alignItems: "center" },
@@ -181,7 +181,7 @@ function createStyles(colors: Colors) {
     itemDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
     switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
     syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.syncConnected },
-    iconBoxDisabled: { backgroundColor: "rgba(58, 74, 90, 0.3)" },
+    iconBoxDisabled: { backgroundColor: colors.surfaceDisabled },
     itemTitleDisabled: { color: colors.textDisabled },
   });
 }

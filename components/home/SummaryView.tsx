@@ -23,7 +23,7 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
   const chartConfig = useMemo(() => ({
     backgroundGradientFrom: colors.surface,
     backgroundGradientTo: colors.surface,
-    color: (opacity = 1) => `rgba(0, 217, 255, ${opacity})`,
+    color: (opacity = 1) => `rgba(${colors.accentRgb}, ${opacity})`,
     labelColor: () => colors.textSecondary,
     barPercentage: 0.6,
     decimalPlaces: 0,

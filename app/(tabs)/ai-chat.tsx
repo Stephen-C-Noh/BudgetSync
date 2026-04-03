@@ -24,30 +24,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Chat-bubble-specific colors with no direct theme token equivalent
-const CHAT_COLORS = {
-  headerBackground: "#0A1B28",
-  border: "#143042",
-  inputBorder: "#123650",
-  inputBackground: "#0B1830",
-  botIconBackground: "#083243",
-  botBubble: "#202B46",
-  userBubble: "#12CFFB",
-  userIconBackground: "#374760",
-  lightText: "#E7EEF5",
-  secondaryText: "#A9B8C8",
-  footerText: "#6F8397",
-  iconText: "#D4DEE7",
-  accentButton: "#00BEEA",
-  accentText: "#00CFF8",
-  sendButton: "#00CFF8",
-  sendIcon: "#02131E",
-  success: "#22D39A",
-  inputPlaceholder: "#7F93A7",
-  cardBg: "#0E2030",
-  cardBorder: "#1A3A50",
-};
-
 type Message = {
   id: string;
   role: "bot" | "user";
@@ -200,7 +176,7 @@ export default function AIChatScreen() {
               <Text style={styles.statusText}>SETUP REQUIRED</Text>
             </View>
           </View>
-          <Ionicons name="information-circle-outline" size={22} color={CHAT_COLORS.iconText} />
+          <Ionicons name="information-circle-outline" size={22} color={colors.textPrimary} />
         </View>
 
         <ScrollView
@@ -222,7 +198,7 @@ export default function AIChatScreen() {
               onPress={() => Linking.openURL("https://aistudio.google.com/apikey")}
               activeOpacity={0.7}
             >
-              <Ionicons name="open-outline" size={14} color={CHAT_COLORS.accentText} style={{ marginRight: 6 }} />
+              <Ionicons name="open-outline" size={14} color={colors.accent} style={{ marginRight: 6 }} />
               <Text style={styles.studioLinkText}>Get a free key at Google AI Studio</Text>
             </TouchableOpacity>
 
@@ -230,7 +206,7 @@ export default function AIChatScreen() {
             <TextInput
               style={[styles.keyInput, keyError ? styles.keyInputError : null]}
               placeholder="AIza..."
-              placeholderTextColor={CHAT_COLORS.inputPlaceholder}
+              placeholderTextColor={colors.textPlaceholder}
               value={keyInput}
               onChangeText={(v) => {
                 setKeyInput(v);
@@ -275,7 +251,7 @@ export default function AIChatScreen() {
               <Text style={styles.statusText}>ONLINE ASSISTANT</Text>
             </View>
           </View>
-          <Ionicons name="information-circle-outline" size={22} color={CHAT_COLORS.iconText} />
+          <Ionicons name="information-circle-outline" size={22} color={colors.textPrimary} />
         </View>
 
         <ScrollView
@@ -321,7 +297,7 @@ export default function AIChatScreen() {
                     <Text style={styles.userText}>{msg.text}</Text>
                   </View>
                   <View style={styles.userIcon}>
-                    <Ionicons name="person-outline" size={16} color={CHAT_COLORS.iconText} />
+                    <Ionicons name="person-outline" size={16} color={colors.textPrimary} />
                   </View>
                 </View>
               </View>
@@ -348,7 +324,7 @@ export default function AIChatScreen() {
             <TextInput
               style={styles.input}
               placeholder="Ask about your budget..."
-              placeholderTextColor={CHAT_COLORS.inputPlaceholder}
+              placeholderTextColor={colors.textPlaceholder}
               value={input}
               onChangeText={setInput}
               onSubmitEditing={() => handleSend(input)}
@@ -361,7 +337,7 @@ export default function AIChatScreen() {
               activeOpacity={0.8}
               disabled={!input.trim() || isSending}
             >
-              <Ionicons name="send" size={16} color={CHAT_COLORS.sendIcon} />
+              <Ionicons name="send" size={16} color={colors.onAccent} />
             </TouchableOpacity>
           </View>
           <Text style={styles.footerText}>
@@ -386,8 +362,8 @@ function createStyles(colors: Colors) {
       paddingTop: 14,
       paddingBottom: 14,
       borderBottomWidth: 1,
-      borderBottomColor: CHAT_COLORS.border,
-      backgroundColor: CHAT_COLORS.headerBackground,
+      borderBottomColor: colors.chatBorder,
+      backgroundColor: colors.chatHeader,
     },
     title: { color: colors.textPrimary, fontSize: 18, fontWeight: "700" },
     statusRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
@@ -396,9 +372,9 @@ function createStyles(colors: Colors) {
       height: 8,
       borderRadius: 4,
       marginRight: 6,
-      backgroundColor: CHAT_COLORS.success,
+      backgroundColor: colors.syncConnected,
     },
-    statusText: { color: CHAT_COLORS.secondaryText, fontSize: 11, fontWeight: "600" },
+    statusText: { color: colors.tabBarInactive, fontSize: 11, fontWeight: "600" },
 
     // Onboarding
     onboardingContent: {
@@ -408,10 +384,10 @@ function createStyles(colors: Colors) {
       paddingVertical: 30,
     },
     onboardingCard: {
-      backgroundColor: CHAT_COLORS.cardBg,
+      backgroundColor: colors.chatCardBg,
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: CHAT_COLORS.cardBorder,
+      borderColor: colors.chatCardBorder,
       padding: 24,
       alignItems: "center",
     },
@@ -433,7 +409,7 @@ function createStyles(colors: Colors) {
       marginBottom: 10,
     },
     onboardingBody: {
-      color: CHAT_COLORS.secondaryText,
+      color: colors.tabBarInactive,
       fontSize: 14,
       lineHeight: 22,
       textAlign: "center",
@@ -445,7 +421,7 @@ function createStyles(colors: Colors) {
       marginBottom: 24,
     },
     studioLinkText: {
-      color: CHAT_COLORS.accentText,
+      color: colors.accent,
       fontSize: 13,
       textDecorationLine: "underline",
     },
@@ -458,9 +434,9 @@ function createStyles(colors: Colors) {
     },
     keyInput: {
       width: "100%",
-      backgroundColor: CHAT_COLORS.inputBackground,
+      backgroundColor: colors.chatInputBg,
       borderWidth: 1,
-      borderColor: CHAT_COLORS.inputBorder,
+      borderColor: colors.chatInputBorder,
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 12,
@@ -484,7 +460,7 @@ function createStyles(colors: Colors) {
       width: "100%",
       alignItems: "center",
     },
-    connectButtonText: { color: CHAT_COLORS.sendIcon, fontWeight: "700", fontSize: 15 },
+    connectButtonText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
 
     // Chat
     chatContainer: { flex: 1 },
@@ -499,19 +475,19 @@ function createStyles(colors: Colors) {
       marginRight: 10,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: CHAT_COLORS.botIconBackground,
+      backgroundColor: colors.chatBotIconBg,
     },
     botGroup: { flex: 1, maxWidth: "82%" },
     senderLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "700", marginBottom: 6 },
     botBubble: {
-      backgroundColor: CHAT_COLORS.botBubble,
+      backgroundColor: colors.chatBotBubble,
       borderRadius: 18,
       paddingHorizontal: 14,
       paddingVertical: 12,
       minHeight: 44,
       justifyContent: "center",
     },
-    botText: { color: CHAT_COLORS.lightText, fontSize: 14, lineHeight: 24 },
+    botText: { color: colors.textPrimary, fontSize: 14, lineHeight: 24 },
 
     userSection: { alignItems: "flex-end", marginBottom: 18 },
     userLabel: {
@@ -527,9 +503,9 @@ function createStyles(colors: Colors) {
       borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      backgroundColor: CHAT_COLORS.userBubble,
+      backgroundColor: colors.accent,
     },
-    userText: { color: CHAT_COLORS.sendIcon, fontSize: 14, fontWeight: "500", lineHeight: 20 },
+    userText: { color: colors.onAccent, fontSize: 14, fontWeight: "500", lineHeight: 20 },
     userIcon: {
       width: 34,
       height: 34,
@@ -537,20 +513,20 @@ function createStyles(colors: Colors) {
       marginLeft: 8,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: CHAT_COLORS.userIconBackground,
+      backgroundColor: colors.chatUserIconBg,
     },
 
     actionsWrap: { flexDirection: "row", flexWrap: "wrap", marginTop: -8, marginBottom: 18, marginLeft: 46 },
     actionButton: {
       borderWidth: 1,
-      borderColor: CHAT_COLORS.accentButton,
+      borderColor: colors.accent,
       borderRadius: 22,
       paddingHorizontal: 14,
       paddingVertical: 8,
       marginRight: 10,
       marginBottom: 10,
     },
-    actionText: { color: CHAT_COLORS.accentText, fontSize: 12, fontWeight: "500" },
+    actionText: { color: colors.accent, fontSize: 12, fontWeight: "500" },
 
     // Input
     inputWrapper: {
@@ -558,18 +534,18 @@ function createStyles(colors: Colors) {
       paddingTop: 10,
       paddingBottom: 8,
       borderTopWidth: 1,
-      borderTopColor: CHAT_COLORS.border,
+      borderTopColor: colors.chatBorder,
       backgroundColor: colors.background,
     },
     inputBar: {
       flexDirection: "row",
       alignItems: "center",
       borderWidth: 1,
-      borderColor: CHAT_COLORS.inputBorder,
+      borderColor: colors.chatInputBorder,
       borderRadius: 28,
       paddingHorizontal: 16,
       paddingVertical: 8,
-      backgroundColor: CHAT_COLORS.inputBackground,
+      backgroundColor: colors.chatInputBg,
     },
     input: { flex: 1, color: colors.textPrimary, fontSize: 14, marginRight: 10 },
     sendButton: {
@@ -578,11 +554,11 @@ function createStyles(colors: Colors) {
       borderRadius: 17,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: CHAT_COLORS.sendButton,
+      backgroundColor: colors.accent,
     },
     sendButtonDisabled: { opacity: 0.4 },
     footerText: {
-      color: CHAT_COLORS.footerText,
+      color: colors.textSecondary,
       fontSize: 10,
       textAlign: "center",
       marginTop: 8,
