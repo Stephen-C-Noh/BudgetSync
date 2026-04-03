@@ -6,7 +6,7 @@ export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
-      // old shouldShowAlert which is now deprecated but still required for backwards compatability.
+      // `shouldShowAlert` is deprecated in newer SDKs, but we keep it for backward compatibility with older SDK versions.
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: false,
