@@ -3,7 +3,15 @@ import React, { createContext, useContext } from "react";
 import { useColorScheme } from "react-native";
 
 // Chart series colors are visual-only and work on both dark and light backgrounds
-const SHARED_CHART_COLORS = ["#21C8F6", "#7A6CFF", "#4CD6B8", "#F3C94D", "#FF7C7C", "#A37CFF", "#2BE38B"];
+const SHARED_CHART_COLORS = [
+  "#21C8F6",
+  "#7A6CFF",
+  "#4CD6B8",
+  "#F3C94D",
+  "#FF7C7C",
+  "#A37CFF",
+  "#2BE38B",
+];
 
 export const darkColors = {
   background: "#0B1519",
@@ -114,34 +122,53 @@ export const lightColors: typeof darkColors = {
 };
 
 export type Colors = typeof darkColors;
+export type ThemeMode = "system" | "light" | "dark";
 
 interface ThemeContextType {
   colors: Colors;
+  themeMode: ThemeMode;
   colorScheme: "dark" | "light";
+  setThemeMode: (mode: ThemeMode) => Promise<void>;
   toggleTheme: () => Promise<void>;
 }
 
-const ThemeContext = createContext<ThemeContextType | null>(null);
+const ThemeContext = createContext<ThemeContextType>({
+  colors: darkColors,
+  themeMode: "system",
+  colorScheme: "dark",
+  setThemeMode: async () => {},
+  toggleTheme: async () => {},
+});
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
   const { settings } = useAppState();
   const { updateSetting } = useAppActions();
 
-  const manualOverride = settings.find((s) => s.key === "theme")?.value;
+  const savedTheme = settings.find((s) => s.key === "theme")?.value;
+  const themeMode: ThemeMode =
+    savedTheme === "dark" || savedTheme === "light" || savedTheme === "system"
+      ? savedTheme
+      : "system";
   const colorScheme: "dark" | "light" =
-    manualOverride === "dark" || manualOverride === "light"
-      ? manualOverride
-      : (systemScheme as "dark" | "light") ?? "dark";
+    themeMode === "system"
+      ? ((systemScheme as "dark" | "light") ?? "dark")
+      : themeMode;
 
   const colors = colorScheme === "dark" ? darkColors : lightColors;
 
+  const setThemeMode = async (mode: ThemeMode) => {
+    await updateSetting("theme", mode);
+  };
+
   const toggleTheme = async () => {
-    await updateSetting("theme", colorScheme === "dark" ? "light" : "dark");
+    await setThemeMode(colorScheme === "dark" ? "light" : "dark");
   };
 
   return (
-    <ThemeContext.Provider value={{ colors, colorScheme, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{ colors, themeMode, colorScheme, setThemeMode, toggleTheme }}
+    >
       {children}
     </ThemeContext.Provider>
   );
