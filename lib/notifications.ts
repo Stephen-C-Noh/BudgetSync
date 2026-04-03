@@ -6,7 +6,7 @@ export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
-      // old shouldShowAlert which is now deprecated but still required for backwards compatability.
+      // `shouldShowAlert` is deprecated in newer SDKs, but we keep it for backward compatibility with older SDK versions.
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: false,
@@ -37,7 +37,7 @@ export async function scheduleLocalNotification(title: string, body: string) {
 export async function checkBudgetAlerts(
   newTx: Transaction,
   goals: BudgetGoal[],
-  allTransaction: Transaction[],
+  allTransactions: Transaction[],
   categories: Category[],
 ) {
   if (newTx.type !== "expense") return; // if the new transaction is an income, no need for check.
@@ -53,8 +53,8 @@ export async function checkBudgetAlerts(
   const categoryName =
     categories.find((c) => c.id === newTx.category_id)?.name ?? "Unknown";
 
-  const monthlyspending =
-    allTransaction
+  const monthlySpending =
+    allTransactions
       .filter(
         (tx) =>
           tx.category_id === newTx.category_id &&
@@ -64,7 +64,8 @@ export async function checkBudgetAlerts(
       )
       .reduce((sum, tx) => sum + tx.amount, 0) + newTx.amount;
 
-  const pct = monthlyspending / goal.limit_amount;
+  if (goal.limit_amount <= 0) return;
+  const pct = monthlySpending / goal.limit_amount;
   if (pct >= 0.8 && pct < 1.0) {
     await scheduleLocalNotification(
       "Budget WARNING",

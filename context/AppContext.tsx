@@ -152,9 +152,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         const lastDigest =
           settingsRef.current.find((s) => s.key === "last_digest_at")?.value ??
           "";
-        const elapsed = lastDigest
-          ? Date.now() - Date.parse(lastDigest)
-          : Infinity;
+        const parsedLastDigest = lastDigest ? Date.parse(lastDigest) : NaN;
+        const elapsed =
+          lastDigest && !Number.isNaN(parsedLastDigest)
+            ? Date.now() - parsedLastDigest
+            : Infinity;
         if (elapsed >= 7 * 24 * 60 * 60 * 1000) {
           try {
             const summary = buildWeeklySummary(transactionsRef.current);
@@ -227,12 +229,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Budget Alert Check!
     if (settings.find((s) => s.key === "budget_alerts")?.value === "1") {
-      await checkBudgetAlerts(
-        transaction,
-        budgetGoals,
-        transactions,
-        categories,
-      );
+      try {
+        await checkBudgetAlerts(
+          transaction,
+          budgetGoals,
+          transactions,
+          categories,
+        );
+      } catch {
+        /* notification failures should not block transaction creation */
+      }
     }
   };
 
