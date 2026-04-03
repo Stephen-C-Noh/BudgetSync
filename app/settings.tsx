@@ -1,6 +1,5 @@
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -30,7 +29,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile, isLoading, settings } = useAppState();
   const { updateSetting } = useAppActions();
-  const { colors } = useTheme();
+  const { colors, colorScheme, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const budgetAlerts =
@@ -65,6 +64,11 @@ export default function SettingsScreen() {
       }
     }
     await updateSetting(key, newValue ? "1" : "0");
+  }
+
+  async function handleThemeModeChange(mode: ThemeMode) {
+    if (mode === themeMode) return;
+    await setThemeMode(mode);
   }
 
   return (
@@ -132,6 +136,52 @@ export default function SettingsScreen() {
             colors={colors}
             styles={styles}
           />
+        </View>
+
+        <Text style={styles.sectionTitle}>APPEARANCE</Text>
+        <View style={styles.card}>
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.itemTitleText}>Theme</Text>
+              <Text style={styles.itemSubText}>
+                {themeMode === "system"
+                  ? `Following system (${colorScheme === "dark" ? "Dark" : "Light"})`
+                  : colorScheme === "dark"
+                    ? "Dark"
+                    : "Light"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.itemDivider} />
+          <View style={styles.themeModeRow}>
+            {(["system", "light", "dark"] as ThemeMode[]).map((mode) => {
+              const isActive = themeMode === mode;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[
+                    styles.themeModeButton,
+                    isActive && styles.themeModeButtonActive,
+                  ]}
+                  onPress={() => handleThemeModeChange(mode)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.themeModeButtonText,
+                      isActive && styles.themeModeButtonTextActive,
+                    ]}
+                  >
+                    {mode === "system"
+                      ? "System"
+                      : mode === "light"
+                        ? "Light"
+                        : "Dark"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>ALERTS</Text>
@@ -229,8 +279,16 @@ function createStyles(colors: Colors) {
       marginTop: 25,
       marginBottom: 12,
     },
-    card: { backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden" },
-    identityContent: { flexDirection: "row", alignItems: "center", padding: 20 },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      overflow: "hidden",
+    },
+    identityContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 20,
+    },
     avatarContainer: { position: "relative" },
     avatarCircle: {
       width: 70,
@@ -280,14 +338,49 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginRight: 15,
     },
-    itemTitleText: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
+    itemTitleText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
     itemSubText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-    itemDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
+    itemDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginHorizontal: 16,
+    },
     switchRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       padding: 16,
+    },
+    themeModeRow: {
+      flexDirection: "row",
+      gap: 10,
+      padding: 16,
+    },
+    themeModeButton: {
+      flex: 1,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 10,
+    },
+    themeModeButtonActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentBg,
+    },
+    themeModeButtonText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    themeModeButtonTextActive: {
+      color: colors.accent,
     },
     actionBtn: {
       flexDirection: "row",
@@ -305,6 +398,10 @@ function createStyles(colors: Colors) {
       borderColor: colors.dangerBorder,
       marginTop: 15,
     },
-    actionBtnText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
+    actionBtnText: {
+      color: colors.textPrimary,
+      fontWeight: "700",
+      fontSize: 15,
+    },
   });
 }
