@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.BudgetSync"
+      "package": "com.anonymous.budgetsync"
     },
     "web": {
       "output": "static",
