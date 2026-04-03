@@ -1,5 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import * as Crypto from "expo-crypto";
 import React, { useMemo, useState } from "react";
 import {
@@ -37,11 +39,12 @@ type Props = { accounts: Account[] };
 export default function AccountsMonthlyView({ accounts }: Props) {
   const { addAccount } = useAppActions();
   const { userProfile } = useAppState();
+  const { colors } = useTheme();
 
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // Modal state
   const [modalVisible, setModalVisible] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState<Account["type"]>("bank");
@@ -136,8 +139,8 @@ export default function AccountsMonthlyView({ accounts }: Props) {
       <View style={styles.row}>
         <View style={styles.box}>
           <View style={styles.boxHeader}>
-            <View style={[styles.iconCircle, { backgroundColor: "rgba(42, 211, 0, 0.1)" }]}>
-              <MaterialCommunityIcons name="bank" size={18} color="#2AD300" />
+            <View style={[styles.iconCircle, { backgroundColor: colors.assetSubtle }]}>
+              <MaterialCommunityIcons name="bank" size={18} color={colors.chartAssets} />
             </View>
             <Text style={styles.boxTitle}>Assets</Text>
           </View>
@@ -149,8 +152,8 @@ export default function AccountsMonthlyView({ accounts }: Props) {
 
         <View style={styles.box}>
           <View style={styles.boxHeader}>
-            <View style={[styles.iconCircle, { backgroundColor: "rgba(255, 77, 77, 0.1)" }]}>
-              <MaterialCommunityIcons name="credit-card-off" size={18} color="#FF4D4D" />
+            <View style={[styles.iconCircle, { backgroundColor: colors.liabilitySubtle }]}>
+              <MaterialCommunityIcons name="credit-card-off" size={18} color={colors.danger} />
             </View>
             <Text style={styles.boxTitle}>Liabilities</Text>
           </View>
@@ -183,7 +186,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 </View>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.accountValue, isCredit && { color: "#FF4D4D" }]}>
+                <Text style={[styles.accountValue, isCredit && { color: colors.danger }]}>
                   {isCredit ? "-" : ""}${Math.abs(groupBalance).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
                 <Text style={isCredit ? styles.accountTagRed : styles.accountTagGreen}>
@@ -196,7 +199,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
       )}
 
       <TouchableOpacity style={styles.addButton} onPress={openModal} activeOpacity={0.85}>
-        <Ionicons name="add-circle-outline" size={20} color="#0B1519" style={{ marginRight: 8 }} />
+        <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
         <Text style={styles.addButtonText}>+ Add Account</Text>
       </TouchableOpacity>
 
@@ -207,7 +210,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Account</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#7A869A" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -217,7 +220,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
               <TextInput
                 style={styles.textInput}
                 placeholder="e.g. Chase Checking"
-                placeholderTextColor="#3A4A5A"
+                placeholderTextColor={colors.textDisabled}
                 value={accountName}
                 onChangeText={setAccountName}
               />
@@ -258,7 +261,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                   <TextInput
                     style={styles.textInput}
                     placeholder="e.g. 4242"
-                    placeholderTextColor="#3A4A5A"
+                    placeholderTextColor={colors.textDisabled}
                     value={last4}
                     onChangeText={(v) => setLast4(v.replace(/\D/g, "").slice(0, 4))}
                     keyboardType="number-pad"
@@ -285,118 +288,119 @@ export default function AccountsMonthlyView({ accounts }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  netWorthCard: { backgroundColor: "#00D9FF", borderRadius: 24, padding: 24, marginBottom: 25 },
-  netWorthLabel: { color: "#0B1519", fontSize: 14, fontWeight: "500", opacity: 0.7 },
-  netWorthValue: { color: "#0B1519", fontSize: 36, fontWeight: "800", marginVertical: 8 },
-  tagsRow: { flexDirection: "row", marginTop: 10 },
-  tag: {
-    backgroundColor: "rgba(255,255,255,0.4)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginRight: 10,
-  },
-  tagText: { color: "#0B1519", fontSize: 12, fontWeight: "600" },
-  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
-  box: { flex: 0.48, backgroundColor: "#1C252E", padding: 16, borderRadius: 20 },
-  boxHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  iconCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: "center", alignItems: "center", marginRight: 10 },
-  boxTitle: { color: "#7A869A", fontSize: 14, fontWeight: "500" },
-  boxValue: { color: "#fff", fontSize: 20, fontWeight: "700", marginBottom: 4 },
-  greenText: { color: "#2AD300", fontSize: 13 },
-  redText: { color: "#FF4D4D", fontSize: 13 },
-  sectionTitle: { color: "#fff", marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-  accountItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#1C252E",
-    padding: 18,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
-  accountLeft: { flexDirection: "row", alignItems: "center" },
-  logoBox: { width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 14 },
-  accountName: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  accountSub: { color: "#7A869A", fontSize: 13, marginTop: 2 },
-  accountValue: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 2 },
-  accountTagGreen: { color: "#2AD300", fontSize: 11 },
-  accountTagRed: { color: "#FF4D4D", fontSize: 11 },
-  emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    netWorthCard: { backgroundColor: colors.accent, borderRadius: 24, padding: 24, marginBottom: 25 },
+    netWorthLabel: { color: colors.onAccent, fontSize: 14, fontWeight: "500", opacity: 0.7 },
+    netWorthValue: { color: colors.onAccent, fontSize: 36, fontWeight: "800", marginVertical: 8 },
+    tagsRow: { flexDirection: "row", marginTop: 10 },
+    tag: {
+      backgroundColor: colors.tagBg,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      marginRight: 10,
+    },
+    tagText: { color: colors.onAccent, fontSize: 12, fontWeight: "600" },
+    row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
+    box: { flex: 0.48, backgroundColor: colors.surface, padding: 16, borderRadius: 20 },
+    boxHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+    iconCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: "center", alignItems: "center", marginRight: 10 },
+    boxTitle: { color: colors.textSecondary, fontSize: 14, fontWeight: "500" },
+    boxValue: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 4 },
+    greenText: { color: colors.chartAssets, fontSize: 13 },
+    redText: { color: colors.danger, fontSize: 13 },
+    sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
+    accountItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      backgroundColor: colors.surface,
+      padding: 18,
+      borderRadius: 20,
+      marginBottom: 12,
+    },
+    accountLeft: { flexDirection: "row", alignItems: "center" },
+    logoBox: { width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 14 },
+    accountName: { color: colors.textPrimary, fontSize: 16, fontWeight: "700" },
+    accountSub: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+    accountValue: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", marginBottom: 2 },
+    accountTagGreen: { color: colors.chartAssets, fontSize: 11 },
+    accountTagRed: { color: colors.danger, fontSize: 11 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
 
-  addButton: {
-    backgroundColor: "#00D4FF",
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  addButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
+    addButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 16,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 8,
+    },
+    addButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  modalSheet: {
-    backgroundColor: "#0B1519",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    maxHeight: "85%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  modalTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: colors.overlay,
+    },
+    modalSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      maxHeight: "85%",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    modalTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700" },
 
-  fieldLabel: {
-    color: "#7A869A",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  textInput: {
-    backgroundColor: "#1C252E",
-    borderRadius: 14,
-    padding: 16,
-    color: "#FFF",
-    fontSize: 15,
-    marginBottom: 24,
-  },
+    fieldLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 1,
+      marginBottom: 10,
+    },
+    textInput: {
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 16,
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginBottom: 24,
+    },
 
-  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
-  typePill: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    backgroundColor: "#1C252E",
-    borderWidth: 1,
-    borderColor: "#2A333D",
-  },
-  typePillActive: { backgroundColor: "rgba(0, 212, 255, 0.12)", borderColor: "#00D4FF" },
-  typePillText: { color: "#7A869A", fontSize: 13, fontWeight: "500" },
-  typePillTextActive: { color: "#00D4FF" },
+    typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
+    typePill: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    typePillActive: { backgroundColor: colors.accentLight, borderColor: colors.accent },
+    typePillText: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
+    typePillTextActive: { color: colors.accent },
 
-  balanceRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#1C252E", borderRadius: 14, paddingHorizontal: 16, marginBottom: 24 },
-  balancePrefix: { color: "#00D4FF", fontSize: 28, fontWeight: "700", marginRight: 4 },
-  balanceInput: { flex: 1, color: "#00D4FF", fontSize: 32, fontWeight: "800", paddingVertical: 12 },
+    balanceRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 16, marginBottom: 24 },
+    balancePrefix: { color: colors.accent, fontSize: 28, fontWeight: "700", marginRight: 4 },
+    balanceInput: { flex: 1, color: colors.accent, fontSize: 32, fontWeight: "800", paddingVertical: 12 },
 
-  saveButton: {
-    backgroundColor: "#00D4FF",
-    borderRadius: 16,
-    paddingVertical: 17,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  saveButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
-});
+    saveButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 17,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    saveButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+  });
+}

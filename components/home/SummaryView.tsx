@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import React, { useMemo, useState } from "react";
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "react-native-chart-kit";
@@ -6,14 +8,6 @@ import { Category, Transaction } from "@/lib/types";
 import NavRow from "@/components/shared/NavRow";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const CHART_CONFIG = {
-  backgroundGradientFrom: "#1C252E",
-  backgroundGradientTo: "#1C252E",
-  color: (opacity = 1) => `rgba(0, 212, 255, ${opacity})`,
-  labelColor: () => "#7A869A",
-  barPercentage: 0.6,
-  decimalPlaces: 0,
-};
 
 type Props = {
   transactions: Transaction[];
@@ -21,8 +15,19 @@ type Props = {
 };
 
 export default function HomeSummaryView({ transactions, categories }: Props) {
+  const { colors } = useTheme();
   const [year, setYear] = useState(new Date().getFullYear());
   const currentMonth = new Date().getMonth();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const chartConfig = useMemo(() => ({
+    backgroundGradientFrom: colors.surface,
+    backgroundGradientTo: colors.surface,
+    color: (opacity = 1) => `rgba(0, 217, 255, ${opacity})`,
+    labelColor: () => colors.textSecondary,
+    barPercentage: 0.6,
+    decimalPlaces: 0,
+  }), [colors]);
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
@@ -65,8 +70,8 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
       <View style={styles.summaryRow}>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
-            <View style={[styles.tileIcon, { backgroundColor: "rgba(0, 200, 83, 0.12)" }]}>
-              <Ionicons name="arrow-down" size={16} color="#00C853" />
+            <View style={[styles.tileIcon, { backgroundColor: colors.incomeSubtle }]}>
+              <Ionicons name="arrow-down" size={16} color={colors.income} />
             </View>
             <Text style={styles.tileLabel}>Income</Text>
           </View>
@@ -76,8 +81,8 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
         </View>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
-            <View style={[styles.tileIcon, { backgroundColor: "rgba(255, 59, 48, 0.12)" }]}>
-              <Ionicons name="arrow-up" size={16} color="#FF3B30" />
+            <View style={[styles.tileIcon, { backgroundColor: colors.expenseSubtle }]}>
+              <Ionicons name="arrow-up" size={16} color={colors.expense} />
             </View>
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
@@ -104,7 +109,7 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
               height={200}
               yAxisLabel="$"
               yAxisSuffix=""
-              chartConfig={CHART_CONFIG}
+              chartConfig={chartConfig}
               style={styles.chart}
               showValuesOnTopOfBars
               fromZero
@@ -127,21 +132,23 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
-  summaryTile: { flex: 0.48, backgroundColor: "#1C252E", borderRadius: 20, padding: 16 },
-  tileIconRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
-  tileLabel: { color: "#7A869A", fontSize: 13, fontWeight: "500" },
-  tileAmount: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 4 },
-  sectionLabel: { color: "#7A869A", fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12 },
-  chart: { borderRadius: 16, marginBottom: 20 },
-  catRow: { backgroundColor: "#1C252E", borderRadius: 16, padding: 16, marginBottom: 10 },
-  catRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  catName: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  catAmount: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  progressBg: { height: 6, backgroundColor: "#0B1519", borderRadius: 3, overflow: "hidden" },
-  progressFill: { height: 6, backgroundColor: "#00D4FF", borderRadius: 3 },
-  emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
-});
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
+    summaryTile: { flex: 0.48, backgroundColor: colors.surface, borderRadius: 20, padding: 16 },
+    tileIconRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+    tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
+    tileLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
+    tileAmount: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 4 },
+    sectionLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12 },
+    chart: { borderRadius: 16, marginBottom: 20 },
+    catRow: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 10 },
+    catRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+    catName: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
+    catAmount: { color: colors.textPrimary, fontSize: 14, fontWeight: "700" },
+    progressBg: { height: 6, backgroundColor: colors.background, borderRadius: 3, overflow: "hidden" },
+    progressFill: { height: 6, backgroundColor: colors.accent, borderRadius: 3 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
+  });
+}

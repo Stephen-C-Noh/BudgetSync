@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { authenticate, hasPIN, isBiometricAvailable, verifyPIN } from "@/lib/auth";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -27,6 +29,7 @@ type Screen = "biometric" | "pin";
 export default function AuthScreen() {
   const router = useRouter();
   const { onAuthenticated } = useAuth();
+  const { colors } = useTheme();
 
   const [screen, setScreen] = useState<Screen>("biometric");
   const [isPrompting, setIsPrompting] = useState(false);
@@ -37,6 +40,7 @@ export default function AuthScreen() {
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [noPinSet, setNoPinSet] = useState(false);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ─── Biometric ───────────────────────────────────────────
 
@@ -135,7 +139,7 @@ export default function AuthScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
           <View style={styles.iconWrapper}>
-            <Ionicons name="keypad" size={40} color="#00D9FF" />
+            <Ionicons name="keypad" size={40} color={colors.accent} />
           </View>
           <Text style={styles.title}>Enter PIN</Text>
           <Text style={styles.subtitle}>Enter your 4-digit PIN to unlock BudgetSync</Text>
@@ -164,7 +168,7 @@ export default function AuthScreen() {
 
               {isVerifying ? (
                 <ActivityIndicator
-                  color="#00D4FF"
+                  color={colors.accent}
                   size="large"
                   style={{ marginTop: 40 }}
                 />
@@ -184,7 +188,7 @@ export default function AuthScreen() {
                               onPress={handleDelete}
                               activeOpacity={0.7}
                             >
-                              <Ionicons name="backspace-outline" size={24} color="#FFF" />
+                              <Ionicons name="backspace-outline" size={24} color={colors.textPrimary} />
                             </TouchableOpacity>
                           );
                         }
@@ -215,14 +219,14 @@ export default function AuthScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconWrapper}>
-          <Ionicons name="finger-print" size={48} color="#00D9FF" />
+          <Ionicons name="finger-print" size={48} color={colors.accent} />
         </View>
         <Text style={styles.title}>BudgetSync</Text>
         <Text style={styles.subtitle}>Verify your identity to continue</Text>
 
         {isPrompting && (
           <ActivityIndicator
-            color="#00D4FF"
+            color={colors.accent}
             size="large"
             style={{ marginTop: 40 }}
           />
@@ -248,7 +252,7 @@ export default function AuthScreen() {
             <Ionicons
               name="finger-print"
               size={20}
-              color="#0B1519"
+              color={colors.onAccent}
               style={{ marginRight: 8 }}
             />
             <Text style={styles.actionBtnText}>Authenticate</Text>
@@ -259,77 +263,78 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1519" },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  iconWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "rgba(0, 217, 255, 0.08)",
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 28,
-  },
-  title: { color: "#FFF", fontSize: 28, fontWeight: "800", marginBottom: 10 },
-  subtitle: {
-    color: "#7A869A",
-    fontSize: 15,
-    textAlign: "center",
-    marginBottom: 40,
-  },
-  feedbackBox: { alignItems: "center" },
-  errorText: {
-    color: "#FF4D4D",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  actionBtn: {
-    backgroundColor: "#00D4FF",
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  actionBtnText: { color: "#0B1519", fontWeight: "700", fontSize: 16 },
-  pinFallbackBtn: { marginTop: 16, padding: 8 },
-  pinFallbackText: { color: "#7A869A", fontSize: 14, textDecorationLine: "underline" },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 40,
+    },
+    iconWrapper: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 28,
+    },
+    title: { color: colors.textPrimary, fontSize: 28, fontWeight: "800", marginBottom: 10 },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      textAlign: "center",
+      marginBottom: 40,
+    },
+    feedbackBox: { alignItems: "center" },
+    errorText: {
+      color: colors.danger,
+      fontSize: 14,
+      textAlign: "center",
+      marginBottom: 20,
+    },
+    actionBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 32,
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+    },
+    actionBtnText: { color: colors.onAccent, fontWeight: "700", fontSize: 16 },
+    pinFallbackBtn: { marginTop: 16, padding: 8 },
+    pinFallbackText: { color: colors.textSecondary, fontSize: 14, textDecorationLine: "underline" },
 
-  // PIN screen
-  dotsRow: { flexDirection: "row", gap: 20, marginBottom: 16 },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    backgroundColor: "transparent",
-  },
-  dotFilled: { backgroundColor: "#00D9FF" },
-  numpad: { marginTop: 24, width: "100%", maxWidth: 300 },
-  numpadRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  numpadKey: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#1C252E",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  numpadKeyEmpty: { width: 80, height: 80 },
-  numpadKeyText: { color: "#FFF", fontSize: 24, fontWeight: "600" },
-});
+    dotsRow: { flexDirection: "row", gap: 20, marginBottom: 16 },
+    dot: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      backgroundColor: "transparent",
+    },
+    dotFilled: { backgroundColor: colors.accent },
+    numpad: { marginTop: 24, width: "100%", maxWidth: 300 },
+    numpadRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 16,
+    },
+    numpadKey: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.surface,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    numpadKeyEmpty: { width: 80, height: 80 },
+    numpadKeyText: { color: colors.textPrimary, fontSize: 24, fontWeight: "600" },
+  });
+}
