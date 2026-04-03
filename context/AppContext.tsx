@@ -152,9 +152,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         const lastDigest =
           settingsRef.current.find((s) => s.key === "last_digest_at")?.value ??
           "";
-        const elapsed = lastDigest
-          ? Date.now() - Date.parse(lastDigest)
-          : Infinity;
+        const parsedLastDigest = lastDigest ? Date.parse(lastDigest) : NaN;
+        const elapsed =
+          lastDigest && !Number.isNaN(parsedLastDigest)
+            ? Date.now() - parsedLastDigest
+            : Infinity;
         if (elapsed >= 7 * 24 * 60 * 60 * 1000) {
           try {
             const summary = buildWeeklySummary(transactionsRef.current);
