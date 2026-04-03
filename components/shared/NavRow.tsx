@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -9,14 +10,15 @@ type Props = {
 };
 
 export default function NavRow({ label, onPrev, onNext }: Props) {
+  const { colors } = useTheme();
   return (
     <View style={styles.navRow}>
       <TouchableOpacity onPress={onPrev}>
-        <Ionicons name="chevron-back" size={20} color="#A7B1C2" />
+        <Ionicons name="chevron-back" size={20} color={colors.tabBarInactive} />
       </TouchableOpacity>
-      <Text style={styles.navLabel}>{label}</Text>
+      <Text style={[styles.navLabel, { color: colors.textPrimary }]}>{label}</Text>
       <TouchableOpacity onPress={onNext}>
-        <Ionicons name="chevron-forward" size={20} color="#A7B1C2" />
+        <Ionicons name="chevron-forward" size={20} color={colors.tabBarInactive} />
       </TouchableOpacity>
     </View>
   );
@@ -29,5 +31,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  navLabel: { color: "#fff", fontSize: 17, fontWeight: "700", marginHorizontal: 24 },
+  navLabel: { fontSize: 17, fontWeight: "700", marginHorizontal: 24 },
 });

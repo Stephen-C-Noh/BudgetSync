@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAppState } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,25 +16,6 @@ import Svg, { Circle } from "react-native-svg";
 
 const TOP_TABS = ["Overview", "Expenses", "Income"] as const;
 type TopTab = (typeof TOP_TABS)[number];
-
-const CHART_COLORS = ["#21C8F6", "#7A6CFF", "#4CD6B8", "#F3C94D", "#FF7C7C", "#A37CFF", "#2BE38B"];
-
-const COLORS = {
-  background: "#071420",
-  card: "#0C1C2B",
-  border: "#132A3A",
-  muted: "#7890A3",
-  secondaryText: "#8EA4B5",
-  white: "#FFFFFF",
-  accent: "#00D1FF",
-  chip: "#122433",
-  chipActive: "#1C9DFF",
-  success: "#2BE38B",
-  progressTrack: "#163246",
-  legendText: "#C8D4DE",
-  weekText: "#A2B4C3",
-  smallText: "#6E8596",
-};
 
 // Generate last N months as { label, year, month } objects
 function getRecentMonths(count: number) {
@@ -53,8 +36,10 @@ const MONTH_OPTIONS = getRecentMonths(3);
 
 export default function StatsScreen() {
   const { transactions, categories, budgetGoals, isLoading } = useAppState();
+  const { colors } = useTheme();
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
 
@@ -99,9 +84,9 @@ export default function StatsScreen() {
       .map(([catId, amount], i) => ({
         label: categoryMap.get(catId)?.name ?? "Other",
         amount,
-        color: CHART_COLORS[i % CHART_COLORS.length],
+        color: colors.chartColors[i % colors.chartColors.length],
       }));
-  }, [filteredTxs, categoryMap]);
+  }, [filteredTxs, categoryMap, colors.chartColors]);
 
   const topCategory = breakdown[0]?.label ?? "—";
 
@@ -127,13 +112,13 @@ export default function StatsScreen() {
     const topAmount = breakdown[0]?.amount ?? 0;
     const progress = totalAmount > 0 ? Math.min(topAmount / totalAmount, 1) : 0;
     const strokeDashoffset = circumference - circumference * progress;
-    return { radius, strokeWidth, size, circumference, strokeDashoffset, color: breakdown[0]?.color ?? COLORS.accent };
-  }, [breakdown, totalAmount]);
+    return { radius, strokeWidth, size, circumference, strokeDashoffset, color: breakdown[0]?.color ?? colors.accent };
+  }, [breakdown, totalAmount, colors.accent]);
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ActivityIndicator style={{ flex: 1 }} color="#00D1FF" />
+        <ActivityIndicator style={{ flex: 1 }} color={colors.accent} />
       </SafeAreaView>
     );
   }
@@ -170,7 +155,7 @@ export default function StatsScreen() {
                 <Text style={[styles.monthChipText, isActive && styles.monthChipTextActive]}>
                   {idx === 0 ? m.label : m.label.split(" ")[0]}
                 </Text>
-                {isActive && <Ionicons name="chevron-down" size={14} color="#FFFFFF" />}
+                {isActive && <Ionicons name="chevron-down" size={14} color={colors.textPrimary} />}
               </TouchableOpacity>
             );
           })}
@@ -223,7 +208,7 @@ export default function StatsScreen() {
                 <View style={styles.chartWrapper}>
                   <Svg width={chart.size} height={chart.size}>
                     <Circle
-                      stroke={COLORS.progressTrack}
+                      stroke={colors.statsProgressTrack}
                       fill="none"
                       cx={chart.size / 2}
                       cy={chart.size / 2}
@@ -293,53 +278,55 @@ export default function StatsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 30 },
-  headerTitle: { color: COLORS.white, fontSize: 22, fontWeight: "700", marginBottom: 18 },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 16, paddingBottom: 30 },
+    headerTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", marginBottom: 18 },
 
-  topTabs: { flexDirection: "row", gap: 18, marginBottom: 16 },
-  topTabButton: { alignItems: "center", paddingBottom: 2 },
-  topTabText: { color: COLORS.muted, fontSize: 14, fontWeight: "500" },
-  topTabTextActive: { color: COLORS.accent, fontWeight: "700" },
-  topTabUnderline: { width: "100%", height: 2, marginTop: 6, borderRadius: 999, backgroundColor: COLORS.accent },
+    topTabs: { flexDirection: "row", gap: 18, marginBottom: 16 },
+    topTabButton: { alignItems: "center", paddingBottom: 2 },
+    topTabText: { color: colors.textSecondary, fontSize: 14, fontWeight: "500" },
+    topTabTextActive: { color: colors.accent, fontWeight: "700" },
+    topTabUnderline: { width: "100%", height: 2, marginTop: 6, borderRadius: 999, backgroundColor: colors.accent },
 
-  monthRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
-  monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: COLORS.chip },
-  monthChipActive: { backgroundColor: COLORS.chipActive },
-  monthChipText: { color: "#AFC2D3", fontSize: 12, fontWeight: "600" },
-  monthChipTextActive: { color: COLORS.white },
+    monthRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
+    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip },
+    monthChipActive: { backgroundColor: colors.accent },
+    monthChipText: { color: colors.tabBarInactive, fontSize: 12, fontWeight: "600" },
+    monthChipTextActive: { color: colors.textPrimary },
 
-  summaryRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
-  summaryCard: { flex: 1, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
-  summaryLabel: { color: COLORS.secondaryText, fontSize: 12, marginBottom: 8 },
-  summaryValue: { color: COLORS.white, fontSize: 22, fontWeight: "700", marginBottom: 8 },
-  noBudgetText: { color: COLORS.muted, fontSize: 13 },
-  progressTrack: { height: 8, marginTop: 8, overflow: "hidden", borderRadius: 999, backgroundColor: COLORS.progressTrack },
-  progressFill: { height: "100%", borderRadius: 999, backgroundColor: "#22C8F6" },
+    summaryRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
+    summaryCard: { flex: 1, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    summaryLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 8 },
+    summaryValue: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", marginBottom: 8 },
+    noBudgetText: { color: colors.textSecondary, fontSize: 13 },
+    progressTrack: { height: 8, marginTop: 8, overflow: "hidden", borderRadius: 999, backgroundColor: colors.statsProgressTrack },
+    progressFill: { height: "100%", borderRadius: 999, backgroundColor: colors.accent },
 
-  card: { padding: 16, marginBottom: 18, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
-  cardTitle: { color: COLORS.white, fontSize: 16, fontWeight: "700", marginBottom: 14 },
-  emptyText: { color: COLORS.muted, fontSize: 14, textAlign: "center", paddingVertical: 20 },
+    card: { padding: 16, marginBottom: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    cardTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", marginBottom: 14 },
+    emptyText: { color: colors.textSecondary, fontSize: 14, textAlign: "center", paddingVertical: 20 },
 
-  chartContainer: { alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 22 },
-  chartWrapper: { width: 190, height: 190, alignItems: "center", justifyContent: "center" },
-  chartCenter: { position: "absolute", width: 118, alignItems: "center", justifyContent: "center" },
-  chartCenterLabel: { color: "#738A9B", fontSize: 9, fontWeight: "700", letterSpacing: 1.1, marginBottom: 6 },
-  chartCenterValue: { maxWidth: 110, color: COLORS.white, fontSize: 14, fontWeight: "700", textAlign: "center" },
+    chartContainer: { alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 22 },
+    chartWrapper: { width: 190, height: 190, alignItems: "center", justifyContent: "center" },
+    chartCenter: { position: "absolute", width: 118, alignItems: "center", justifyContent: "center" },
+    chartCenterLabel: { color: colors.textSecondary, fontSize: 9, fontWeight: "700", letterSpacing: 1.1, marginBottom: 6 },
+    chartCenterValue: { maxWidth: 110, color: colors.textPrimary, fontSize: 14, fontWeight: "700", textAlign: "center" },
 
-  legendList: { gap: 12 },
-  legendRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  legendLeft: { flexDirection: "row", alignItems: "center" },
-  legendDot: { width: 8, height: 8, borderRadius: 999, marginRight: 10 },
-  legendText: { color: COLORS.legendText, fontSize: 14 },
-  legendAmount: { color: COLORS.white, fontSize: 14, fontWeight: "600" },
+    legendList: { gap: 12 },
+    legendRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    legendLeft: { flexDirection: "row", alignItems: "center" },
+    legendDot: { width: 8, height: 8, borderRadius: 999, marginRight: 10 },
+    legendText: { color: colors.tabBarInactive, fontSize: 14 },
+    legendAmount: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
 
-  weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  weekSubtext: { color: COLORS.smallText, fontSize: 12 },
-  weekChart: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, marginTop: 10, paddingHorizontal: 8 },
-  weekColumn: { alignItems: "center" },
-  bar: { width: 24, borderRadius: 10, marginBottom: 8, backgroundColor: "#21C8F6" },
-  weekLabel: { color: COLORS.weekText, fontSize: 12 },
-});
+    weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    weekSubtext: { color: colors.textSecondary, fontSize: 12 },
+    weekChart: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, marginTop: 10, paddingHorizontal: 8 },
+    weekColumn: { alignItems: "center" },
+    bar: { width: 24, borderRadius: 10, marginBottom: 8, backgroundColor: colors.accent },
+    weekLabel: { color: colors.tabBarInactive, fontSize: 12 },
+  });
+}

@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -14,8 +16,10 @@ type Props = {
 
 export default function DailyView({ transactions, categories }: Props) {
   const router = useRouter();
+  const { colors } = useTheme();
   const [date, setDate] = useState(new Date());
   const dateStr = formatDate(date);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
@@ -47,8 +51,8 @@ export default function DailyView({ transactions, categories }: Props) {
       <View style={styles.summaryRow}>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
-            <View style={[styles.tileIcon, { backgroundColor: "rgba(0, 200, 83, 0.12)" }]}>
-              <Ionicons name="arrow-down" size={16} color="#00C853" />
+            <View style={[styles.tileIcon, { backgroundColor: colors.incomeSubtle }]}>
+              <Ionicons name="arrow-down" size={16} color={colors.income} />
             </View>
             <Text style={styles.tileLabel}>Income</Text>
           </View>
@@ -56,8 +60,8 @@ export default function DailyView({ transactions, categories }: Props) {
         </View>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
-            <View style={[styles.tileIcon, { backgroundColor: "rgba(255, 59, 48, 0.12)" }]}>
-              <Ionicons name="arrow-up" size={16} color="#FF3B30" />
+            <View style={[styles.tileIcon, { backgroundColor: colors.expenseSubtle }]}>
+              <Ionicons name="arrow-up" size={16} color={colors.expense} />
             </View>
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
@@ -70,7 +74,7 @@ export default function DailyView({ transactions, categories }: Props) {
         onPress={() => router.push(`/add-transaction?date=${dateStr}`)}
         activeOpacity={0.85}
       >
-        <Ionicons name="add-circle-outline" size={20} color="#0B1519" style={{ marginRight: 8 }} />
+        <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
         <Text style={styles.addButtonText}>+ Add Transaction</Text>
       </TouchableOpacity>
 
@@ -88,24 +92,26 @@ export default function DailyView({ transactions, categories }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
-  summaryTile: { flex: 0.48, backgroundColor: "#1C252E", borderRadius: 20, padding: 16 },
-  tileIconRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
-  tileLabel: { color: "#7A869A", fontSize: 13, fontWeight: "500" },
-  tileAmount: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 4 },
-  addButton: {
-    backgroundColor: "#00D4FF",
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  addButtonText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
-  sectionTitle: { color: "#fff", marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-  emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
-});
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
+    summaryTile: { flex: 0.48, backgroundColor: colors.surface, borderRadius: 20, padding: 16 },
+    tileIconRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+    tileIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 8 },
+    tileLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
+    tileAmount: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 4 },
+    addButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 16,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    addButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+    sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
+  });
+}

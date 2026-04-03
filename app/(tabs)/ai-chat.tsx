@@ -1,5 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppState } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import {
   GeminiTurn,
   getGeminiKey,
@@ -7,7 +9,7 @@ import {
   sendMessage,
   validateGeminiKey,
 } from "@/lib/gemini";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -22,34 +24,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const COLORS = {
-  background: "#071420",
-  headerBackground: "#0A1B28",
-  border: "#143042",
-  inputBorder: "#123650",
-  inputBackground: "#0B1830",
-  botIconBackground: "#083243",
-  botBubble: "#202B46",
-  userBubble: "#12CFFB",
-  userIconBackground: "#374760",
-  white: "#FFFFFF",
-  lightText: "#E7EEF5",
-  mutedText: "#7D90A3",
-  secondaryText: "#A9B8C8",
-  footerText: "#6F8397",
-  iconText: "#D4DEE7",
-  accent: "#00D1FF",
-  accentButton: "#00BEEA",
-  accentText: "#00CFF8",
-  sendButton: "#00CFF8",
-  sendIcon: "#02131E",
-  success: "#22D39A",
-  inputPlaceholder: "#7F93A7",
-  danger: "#FF4D6D",
-  cardBg: "#0E2030",
-  cardBorder: "#1A3A50",
-};
-
 type Message = {
   id: string;
   role: "bot" | "user";
@@ -63,6 +37,7 @@ const FOLLOW_UP_CHIPS = ["Tell me more", "Show breakdown", "Any tips?"];
 
 export default function AIChatScreen() {
   const { transactions, categories } = useAppState();
+  const { colors } = useTheme();
 
   // Key management
   const [keyChecked, setKeyChecked] = useState(false);
@@ -77,6 +52,7 @@ export default function AIChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const geminiHistory = useRef<GeminiTurn[]>([]);
   const scrollRef = useRef<ScrollView>(null);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
     getGeminiKey().then((key) => {
@@ -183,7 +159,7 @@ export default function AIChatScreen() {
   if (!keyChecked) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ActivityIndicator color={COLORS.accent} style={{ flex: 1 }} />
+        <ActivityIndicator color={colors.accent} style={{ flex: 1 }} />
       </SafeAreaView>
     );
   }
@@ -196,11 +172,11 @@ export default function AIChatScreen() {
           <View>
             <Text style={styles.title}>SyncBot AI</Text>
             <View style={styles.statusRow}>
-              <View style={[styles.statusDot, { backgroundColor: COLORS.mutedText }]} />
+              <View style={[styles.statusDot, { backgroundColor: colors.textSecondary }]} />
               <Text style={styles.statusText}>SETUP REQUIRED</Text>
             </View>
           </View>
-          <Ionicons name="information-circle-outline" size={22} color={COLORS.iconText} />
+          <Ionicons name="information-circle-outline" size={22} color={colors.textPrimary} />
         </View>
 
         <ScrollView
@@ -210,7 +186,7 @@ export default function AIChatScreen() {
         >
           <View style={styles.onboardingCard}>
             <View style={styles.onboardingIcon}>
-              <MaterialCommunityIcons name="robot-outline" size={36} color={COLORS.accent} />
+              <MaterialCommunityIcons name="robot-outline" size={36} color={colors.accent} />
             </View>
             <Text style={styles.onboardingTitle}>Connect SyncBot AI</Text>
             <Text style={styles.onboardingBody}>
@@ -222,7 +198,7 @@ export default function AIChatScreen() {
               onPress={() => Linking.openURL("https://aistudio.google.com/apikey")}
               activeOpacity={0.7}
             >
-              <Ionicons name="open-outline" size={14} color={COLORS.accentText} style={{ marginRight: 6 }} />
+              <Ionicons name="open-outline" size={14} color={colors.accent} style={{ marginRight: 6 }} />
               <Text style={styles.studioLinkText}>Get a free key at Google AI Studio</Text>
             </TouchableOpacity>
 
@@ -230,7 +206,7 @@ export default function AIChatScreen() {
             <TextInput
               style={[styles.keyInput, keyError ? styles.keyInputError : null]}
               placeholder="AIza..."
-              placeholderTextColor={COLORS.inputPlaceholder}
+              placeholderTextColor={colors.textPlaceholder}
               value={keyInput}
               onChangeText={(v) => {
                 setKeyInput(v);
@@ -244,7 +220,7 @@ export default function AIChatScreen() {
             )}
 
             {isValidating ? (
-              <ActivityIndicator color={COLORS.accent} style={{ marginTop: 20 }} />
+              <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
             ) : (
               <TouchableOpacity
                 style={styles.connectButton}
@@ -275,7 +251,7 @@ export default function AIChatScreen() {
               <Text style={styles.statusText}>ONLINE ASSISTANT</Text>
             </View>
           </View>
-          <Ionicons name="information-circle-outline" size={22} color={COLORS.iconText} />
+          <Ionicons name="information-circle-outline" size={22} color={colors.textPrimary} />
         </View>
 
         <ScrollView
@@ -289,7 +265,7 @@ export default function AIChatScreen() {
               <View key={msg.id}>
                 <View style={styles.botRow}>
                   <View style={styles.botIcon}>
-                    <MaterialCommunityIcons name="robot-outline" size={18} color={COLORS.accent} />
+                    <MaterialCommunityIcons name="robot-outline" size={18} color={colors.accent} />
                   </View>
                   <View style={styles.botGroup}>
                     <Text style={styles.senderLabel}>SYNCBOT</Text>
@@ -321,7 +297,7 @@ export default function AIChatScreen() {
                     <Text style={styles.userText}>{msg.text}</Text>
                   </View>
                   <View style={styles.userIcon}>
-                    <Ionicons name="person-outline" size={16} color={COLORS.iconText} />
+                    <Ionicons name="person-outline" size={16} color={colors.textPrimary} />
                   </View>
                 </View>
               </View>
@@ -331,12 +307,12 @@ export default function AIChatScreen() {
           {isSending && (
             <View style={styles.botRow}>
               <View style={styles.botIcon}>
-                <MaterialCommunityIcons name="robot-outline" size={18} color={COLORS.accent} />
+                <MaterialCommunityIcons name="robot-outline" size={18} color={colors.accent} />
               </View>
               <View style={styles.botGroup}>
                 <Text style={styles.senderLabel}>SYNCBOT</Text>
                 <View style={styles.botBubble}>
-                  <ActivityIndicator color={COLORS.accent} size="small" />
+                  <ActivityIndicator color={colors.accent} size="small" />
                 </View>
               </View>
             </View>
@@ -348,7 +324,7 @@ export default function AIChatScreen() {
             <TextInput
               style={styles.input}
               placeholder="Ask about your budget..."
-              placeholderTextColor={COLORS.inputPlaceholder}
+              placeholderTextColor={colors.textPlaceholder}
               value={input}
               onChangeText={setInput}
               onSubmitEditing={() => handleSend(input)}
@@ -361,7 +337,7 @@ export default function AIChatScreen() {
               activeOpacity={0.8}
               disabled={!input.trim() || isSending}
             >
-              <Ionicons name="send" size={16} color={COLORS.sendIcon} />
+              <Ionicons name="send" size={16} color={colors.onAccent} />
             </TouchableOpacity>
           </View>
           <Text style={styles.footerText}>
@@ -373,217 +349,219 @@ export default function AIChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, backgroundColor: COLORS.background },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: colors.background },
 
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.headerBackground,
-  },
-  title: { color: COLORS.white, fontSize: 18, fontWeight: "700" },
-  statusRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-    backgroundColor: COLORS.success,
-  },
-  statusText: { color: COLORS.secondaryText, fontSize: 11, fontWeight: "600" },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.chatBorder,
+      backgroundColor: colors.chatHeader,
+    },
+    title: { color: colors.textPrimary, fontSize: 18, fontWeight: "700" },
+    statusRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
+    statusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      marginRight: 6,
+      backgroundColor: colors.syncConnected,
+    },
+    statusText: { color: colors.tabBarInactive, fontSize: 11, fontWeight: "600" },
 
-  // Onboarding
-  onboardingContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 30,
-  },
-  onboardingCard: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    padding: 24,
-    alignItems: "center",
-  },
-  onboardingIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(0, 209, 255, 0.08)",
-    borderWidth: 1.5,
-    borderColor: COLORS.accent,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  onboardingTitle: {
-    color: COLORS.white,
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  onboardingBody: {
-    color: COLORS.secondaryText,
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: "center",
-    marginBottom: 18,
-  },
-  studioLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  studioLinkText: {
-    color: COLORS.accentText,
-    fontSize: 13,
-    textDecorationLine: "underline",
-  },
-  keyLabel: {
-    color: COLORS.mutedText,
-    fontSize: 12,
-    fontWeight: "600",
-    alignSelf: "flex-start",
-    marginBottom: 8,
-  },
-  keyInput: {
-    width: "100%",
-    backgroundColor: COLORS.inputBackground,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: COLORS.white,
-    fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  keyInputError: { borderColor: COLORS.danger },
-  keyErrorText: {
-    color: COLORS.danger,
-    fontSize: 12,
-    marginTop: 8,
-    alignSelf: "flex-start",
-  },
-  connectButton: {
-    marginTop: 20,
-    backgroundColor: COLORS.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    width: "100%",
-    alignItems: "center",
-  },
-  connectButtonText: { color: COLORS.sendIcon, fontWeight: "700", fontSize: 15 },
+    // Onboarding
+    onboardingContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 30,
+    },
+    onboardingCard: {
+      backgroundColor: colors.chatCardBg,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.chatCardBorder,
+      padding: 24,
+      alignItems: "center",
+    },
+    onboardingIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 1.5,
+      borderColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 18,
+    },
+    onboardingTitle: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: "700",
+      marginBottom: 10,
+    },
+    onboardingBody: {
+      color: colors.tabBarInactive,
+      fontSize: 14,
+      lineHeight: 22,
+      textAlign: "center",
+      marginBottom: 18,
+    },
+    studioLink: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    studioLinkText: {
+      color: colors.accent,
+      fontSize: 13,
+      textDecorationLine: "underline",
+    },
+    keyLabel: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+      alignSelf: "flex-start",
+      marginBottom: 8,
+    },
+    keyInput: {
+      width: "100%",
+      backgroundColor: colors.chatInputBg,
+      borderWidth: 1,
+      borderColor: colors.chatInputBorder,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    },
+    keyInputError: { borderColor: colors.danger },
+    keyErrorText: {
+      color: colors.danger,
+      fontSize: 12,
+      marginTop: 8,
+      alignSelf: "flex-start",
+    },
+    connectButton: {
+      marginTop: 20,
+      backgroundColor: colors.accent,
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 32,
+      width: "100%",
+      alignItems: "center",
+    },
+    connectButtonText: { color: colors.onAccent, fontWeight: "700", fontSize: 15 },
 
-  // Chat
-  chatContainer: { flex: 1 },
-  chatContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 20 },
+    // Chat
+    chatContainer: { flex: 1 },
+    chatContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 20 },
 
-  botRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 18 },
-  botIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginTop: 18,
-    marginRight: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.botIconBackground,
-  },
-  botGroup: { flex: 1, maxWidth: "82%" },
-  senderLabel: { color: COLORS.mutedText, fontSize: 10, fontWeight: "700", marginBottom: 6 },
-  botBubble: {
-    backgroundColor: COLORS.botBubble,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  botText: { color: COLORS.lightText, fontSize: 14, lineHeight: 24 },
+    botRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 18 },
+    botIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      marginTop: 18,
+      marginRight: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.chatBotIconBg,
+    },
+    botGroup: { flex: 1, maxWidth: "82%" },
+    senderLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "700", marginBottom: 6 },
+    botBubble: {
+      backgroundColor: colors.chatBotBubble,
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      minHeight: 44,
+      justifyContent: "center",
+    },
+    botText: { color: colors.textPrimary, fontSize: 14, lineHeight: 24 },
 
-  userSection: { alignItems: "flex-end", marginBottom: 18 },
-  userLabel: {
-    color: COLORS.mutedText,
-    fontSize: 10,
-    fontWeight: "700",
-    marginRight: 44,
-    marginBottom: 6,
-  },
-  userRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
-  userBubble: {
-    maxWidth: "78%",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: COLORS.userBubble,
-  },
-  userText: { color: COLORS.sendIcon, fontSize: 14, fontWeight: "500", lineHeight: 20 },
-  userIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    marginLeft: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.userIconBackground,
-  },
+    userSection: { alignItems: "flex-end", marginBottom: 18 },
+    userLabel: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontWeight: "700",
+      marginRight: 44,
+      marginBottom: 6,
+    },
+    userRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
+    userBubble: {
+      maxWidth: "78%",
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: colors.accent,
+    },
+    userText: { color: colors.onAccent, fontSize: 14, fontWeight: "500", lineHeight: 20 },
+    userIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      marginLeft: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.chatUserIconBg,
+    },
 
-  actionsWrap: { flexDirection: "row", flexWrap: "wrap", marginTop: -8, marginBottom: 18, marginLeft: 46 },
-  actionButton: {
-    borderWidth: 1,
-    borderColor: COLORS.accentButton,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 10,
-    marginBottom: 10,
-  },
-  actionText: { color: COLORS.accentText, fontSize: 12, fontWeight: "500" },
+    actionsWrap: { flexDirection: "row", flexWrap: "wrap", marginTop: -8, marginBottom: 18, marginLeft: 46 },
+    actionButton: {
+      borderWidth: 1,
+      borderColor: colors.accent,
+      borderRadius: 22,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginRight: 10,
+      marginBottom: 10,
+    },
+    actionText: { color: colors.accent, fontSize: 12, fontWeight: "500" },
 
-  // Input
-  inputWrapper: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    borderRadius: 28,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: COLORS.inputBackground,
-  },
-  input: { flex: 1, color: COLORS.white, fontSize: 14, marginRight: 10 },
-  sendButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.sendButton,
-  },
-  sendButtonDisabled: { opacity: 0.4 },
-  footerText: {
-    color: COLORS.footerText,
-    fontSize: 10,
-    textAlign: "center",
-    marginTop: 8,
-  },
-});
+    // Input
+    inputWrapper: {
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.chatBorder,
+      backgroundColor: colors.background,
+    },
+    inputBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.chatInputBorder,
+      borderRadius: 28,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: colors.chatInputBg,
+    },
+    input: { flex: 1, color: colors.textPrimary, fontSize: 14, marginRight: 10 },
+    sendButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.accent,
+    },
+    sendButtonDisabled: { opacity: 0.4 },
+    footerText: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      textAlign: "center",
+      marginTop: 8,
+    },
+  });
+}

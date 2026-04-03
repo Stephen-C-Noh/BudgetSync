@@ -1,5 +1,6 @@
 import { AppProvider, useAppState } from "@/context/AppContext";
 import { AuthContext } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { configureNotificationHandler } from "@/lib/notifications";
 import {
   Stack,
@@ -59,7 +60,9 @@ function InnerLayout() {
 export default function RootLayout() {
   return (
     <AppProvider>
-      <InnerLayout />
+      <ThemeProvider>
+        <InnerLayout />
+      </ThemeProvider>
     </AppProvider>
   );
 }

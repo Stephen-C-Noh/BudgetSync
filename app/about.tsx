@@ -1,5 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { useRouter } from "expo-router";
+import { useMemo } from "react";
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -15,12 +18,14 @@ const BUILT_WITH = [
 
 export default function AboutScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 15, paddingRight: 10 }}>
-          <Ionicons name="arrow-back" size={24} color="#00D9FF" />
+          <Ionicons name="arrow-back" size={24} color={colors.accent} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>About</Text>
         <View style={{ width: 24, marginRight: 15 }} />
@@ -30,7 +35,7 @@ export default function AboutScreen() {
         {/* App identity */}
         <View style={styles.heroCard}>
           <View style={styles.logoCircle}>
-            <MaterialCommunityIcons name="wallet" size={48} color="#00D9FF" />
+            <MaterialCommunityIcons name="wallet" size={48} color={colors.accent} />
           </View>
           <Text style={styles.appName}>BudgetSync</Text>
           <Text style={styles.tagline}>Personal finance, simplified.</Text>
@@ -53,7 +58,7 @@ export default function AboutScreen() {
             <View key={item.label}>
               <View style={styles.techRow}>
                 <View style={styles.iconBox}>
-                  <Ionicons name={item.icon} size={20} color="#00D9FF" />
+                  <Ionicons name={item.icon} size={20} color={colors.accent} />
                 </View>
                 <Text style={styles.techLabel}>{item.label}</Text>
               </View>
@@ -92,13 +97,13 @@ export default function AboutScreen() {
             <View key={dev.name}>
               <TouchableOpacity style={styles.devRow} onPress={() => Linking.openURL(dev.github)} activeOpacity={0.7}>
                 <View style={styles.devAvatar}>
-                  <MaterialCommunityIcons name="account" size={22} color="#00D9FF" />
+                  <MaterialCommunityIcons name="account" size={22} color={colors.accent} />
                 </View>
                 <View style={styles.devInfo}>
                   <Text style={styles.devName}>{dev.name}</Text>
                   <Text style={styles.devGithub}>{dev.github.replace("https://", "")}</Text>
                 </View>
-                <Ionicons name="logo-github" size={20} color="#7A869A" />
+                <Ionicons name="logo-github" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
               {index < arr.length - 1 && <View style={styles.divider} />}
             </View>
@@ -113,101 +118,103 @@ export default function AboutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1519" },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 15,
-  },
-  headerTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
-  scroll: { paddingHorizontal: 20 },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 15,
+    },
+    headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700" },
+    scroll: { paddingHorizontal: 20 },
 
-  heroCard: {
-    backgroundColor: "#1C252E",
-    borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "rgba(0, 217, 255, 0.08)",
-    borderWidth: 2,
-    borderColor: "#00D9FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  appName: { color: "#FFF", fontSize: 28, fontWeight: "800", marginBottom: 6 },
-  tagline: { color: "#7A869A", fontSize: 14, marginBottom: 16 },
-  versionBadge: {
-    backgroundColor: "rgba(0, 217, 255, 0.1)",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.25)",
-  },
-  versionText: { color: "#00D9FF", fontSize: 12, fontWeight: "700" },
+    heroCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      padding: 32,
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    logoCircle: {
+      width: 90,
+      height: 90,
+      borderRadius: 45,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    appName: { color: colors.textPrimary, fontSize: 28, fontWeight: "800", marginBottom: 6 },
+    tagline: { color: colors.textSecondary, fontSize: 14, marginBottom: 16 },
+    versionBadge: {
+      backgroundColor: colors.accentBg,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 5,
+      borderWidth: 1,
+      borderColor: colors.accentLight,
+    },
+    versionText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
 
-  card: { backgroundColor: "#1C252E", borderRadius: 20, overflow: "hidden", marginBottom: 16 },
+    card: { backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden", marginBottom: 16 },
 
-  descriptionText: {
-    color: "#A0AABB",
-    fontSize: 14,
-    lineHeight: 22,
-    padding: 20,
-  },
+    descriptionText: {
+      color: colors.tabBarInactive,
+      fontSize: 14,
+      lineHeight: 22,
+      padding: 20,
+    },
 
-  sectionTitle: {
-    color: "#7A869A",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 12,
-    marginTop: 8,
-  },
+    sectionTitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1,
+      marginBottom: 12,
+      marginTop: 8,
+    },
 
-  techRow: { flexDirection: "row", alignItems: "center", padding: 16 },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(0, 217, 255, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  techLabel: { color: "#FFF", fontSize: 15, fontWeight: "600" },
-  divider: { height: 1, backgroundColor: "#2A333D", marginHorizontal: 16 },
+    techRow: { flexDirection: "row", alignItems: "center", padding: 16 },
+    iconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.accentBg,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 15,
+    },
+    techLabel: { color: colors.textPrimary, fontSize: 15, fontWeight: "600" },
+    divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
 
-  legalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-  },
-  legalKey: { color: "#7A869A", fontSize: 14 },
-  legalValue: { color: "#FFF", fontSize: 14, fontWeight: "600" },
+    legalRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 16,
+    },
+    legalKey: { color: colors.textSecondary, fontSize: 14 },
+    legalValue: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
 
-  footerText: { color: "#3A4A5A", fontSize: 12, textAlign: "center", marginTop: 8 },
-  devRow: { flexDirection: "row", alignItems: "center", padding: 16 },
-  devAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0, 217, 255, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  devInfo: { flex: 1 },
-  devName: { color: "#FFF", fontSize: 15, fontWeight: "600" },
-  devGithub: { color: "#7A869A", fontSize: 12, marginTop: 2 },
-});
+    footerText: { color: colors.textDisabled, fontSize: 12, textAlign: "center", marginTop: 8 },
+    devRow: { flexDirection: "row", alignItems: "center", padding: 16 },
+    devAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.accentSubtle,
+      borderWidth: 1,
+      borderColor: colors.accentLight,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 14,
+    },
+    devInfo: { flex: 1 },
+    devName: { color: colors.textPrimary, fontSize: 15, fontWeight: "600" },
+    devGithub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  });
+}

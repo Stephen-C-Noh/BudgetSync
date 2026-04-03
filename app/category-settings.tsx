@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -17,7 +19,9 @@ export default function CategorySettingsScreen() {
   const router = useRouter();
   const { categories, isLoading } = useAppState();
   const { deleteCategory } = useAppActions();
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<"expense" | "income">("expense");
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const displayCategories = useMemo(
     () => categories.filter((c) => c.type === activeTab),
@@ -38,7 +42,7 @@ export default function CategorySettingsScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator style={{ flex: 1 }} color="#00D4FF" />
+        <ActivityIndicator style={{ flex: 1 }} color={colors.accent} />
       </SafeAreaView>
     );
   }
@@ -47,7 +51,7 @@ export default function CategorySettingsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 15, paddingRight: 10 }}>
-          <Ionicons name="arrow-back" size={24} color="#00D9FF" />
+          <Ionicons name="arrow-back" size={24} color={colors.accent} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Category Settings</Text>
         <View style={{ width: 24, marginRight: 15 }} />
@@ -91,13 +95,13 @@ export default function CategorySettingsScreen() {
                   </View>
                   <View style={styles.categoryActions}>
                     <TouchableOpacity style={styles.actionBtn}>
-                      <Ionicons name="pencil-outline" size={18} color="#00D9FF" />
+                      <Ionicons name="pencil-outline" size={18} color={colors.accent} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionBtn, { marginLeft: 8 }]}
                       onPress={() => handleDelete(cat.id)}
                     >
-                      <Ionicons name="trash-outline" size={18} color="#FF4D4D" />
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -108,7 +112,7 @@ export default function CategorySettingsScreen() {
         </View>
 
         <TouchableOpacity style={styles.addBtn}>
-          <Ionicons name="add-circle-outline" size={20} color="#0B1519" style={{ marginRight: 8 }} />
+          <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
           <Text style={styles.addBtnText}>Add Custom Category</Text>
         </TouchableOpacity>
 
@@ -118,71 +122,73 @@ export default function CategorySettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1519" },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 15,
-  },
-  headerTitle: { color: "#FFF", fontSize: 20, fontWeight: "700" },
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 15,
+    },
+    headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700" },
 
-  toggle: {
-    flexDirection: "row",
-    backgroundColor: "#1C252E",
-    borderRadius: 14,
-    padding: 4,
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
-  toggleActive: { backgroundColor: "#00D4FF" },
-  toggleText: { color: "#7A869A", fontWeight: "600", fontSize: 15 },
-  toggleTextActive: { color: "#0B1519", fontWeight: "700" },
+    toggle: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 4,
+      marginHorizontal: 20,
+      marginBottom: 20,
+    },
+    toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+    toggleActive: { backgroundColor: colors.accent },
+    toggleText: { color: colors.textSecondary, fontWeight: "600", fontSize: 15 },
+    toggleTextActive: { color: colors.onAccent, fontWeight: "700" },
 
-  scroll: { paddingHorizontal: 20 },
-  card: { backgroundColor: "#1C252E", borderRadius: 20, overflow: "hidden", marginBottom: 16 },
+    scroll: { paddingHorizontal: 20 },
+    card: { backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden", marginBottom: 16 },
 
-  emptyRow: { padding: 20, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
+    emptyRow: { padding: 20, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
 
-  categoryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-  },
-  categoryLeft: { flexDirection: "row", alignItems: "center" },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#0B1519",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  catEmoji: { fontSize: 20 },
-  categoryName: { color: "#FFF", fontSize: 16, fontWeight: "600" },
-  categoryActions: { flexDirection: "row" },
-  actionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#0B1519",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  divider: { height: 1, backgroundColor: "#2A333D", marginHorizontal: 16 },
+    categoryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 16,
+    },
+    categoryLeft: { flexDirection: "row", alignItems: "center" },
+    iconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 14,
+    },
+    catEmoji: { fontSize: 20 },
+    categoryName: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
+    categoryActions: { flexDirection: "row" },
+    actionBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
 
-  addBtn: {
-    backgroundColor: "#00D4FF",
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  addBtnText: { color: "#0B1519", fontSize: 16, fontWeight: "700" },
-});
+    addBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 16,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    addBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+  });
+}

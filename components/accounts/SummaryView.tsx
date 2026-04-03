@@ -1,3 +1,5 @@
+import { useTheme } from "@/context/ThemeContext";
+import { Colors } from "@/context/ThemeContext";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Account, Category, Transaction } from "@/lib/types";
@@ -10,8 +12,10 @@ type Props = {
 };
 
 export default function AccountsSummaryView({ accounts, transactions, categories }: Props) {
+  const { colors } = useTheme();
   const [year, setYear] = useState(new Date().getFullYear());
   const currentMonth = new Date().getMonth();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const { netWorth, assets, liabilities } = useMemo(() => {
     let assets = 0, liabilities = 0;
@@ -51,19 +55,19 @@ export default function AccountsSummaryView({ accounts, transactions, categories
       <View style={styles.tilesRow}>
         <View style={styles.tile}>
           <Text style={styles.tileLabel}>NET WORTH</Text>
-          <Text style={[styles.tileValue, { color: "#00D4FF" }]}>
+          <Text style={[styles.tileValue, { color: colors.accent }]}>
             ${netWorth.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
         </View>
         <View style={styles.tile}>
           <Text style={styles.tileLabel}>ASSETS</Text>
-          <Text style={[styles.tileValue, { color: "#2AD300" }]}>
+          <Text style={[styles.tileValue, { color: colors.chartAssets }]}>
             ${assets.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
         </View>
         <View style={styles.tile}>
           <Text style={styles.tileLabel}>LIABILITIES</Text>
-          <Text style={[styles.tileValue, { color: "#FF4D4D" }]}>
+          <Text style={[styles.tileValue, { color: colors.danger }]}>
             ${liabilities.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </Text>
         </View>
@@ -91,18 +95,20 @@ export default function AccountsSummaryView({ accounts, transactions, categories
   );
 }
 
-const styles = StyleSheet.create({
-  tilesRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
-  tile: { flex: 0.31, backgroundColor: "#1C252E", borderRadius: 20, padding: 14, alignItems: "center" },
-  tileLabel: { color: "#7A869A", fontSize: 10, fontWeight: "700", letterSpacing: 0.5, marginBottom: 6 },
-  tileValue: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  sectionTitle: { color: "#fff", marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-  catRow: { backgroundColor: "#1C252E", borderRadius: 16, padding: 16, marginBottom: 10 },
-  catRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  catName: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  catAmount: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  progressBg: { height: 6, backgroundColor: "#0B1519", borderRadius: 3, overflow: "hidden" },
-  progressFill: { height: 6, backgroundColor: "#00D4FF", borderRadius: 3 },
-  emptyState: { backgroundColor: "#1C252E", borderRadius: 16, padding: 24, alignItems: "center" },
-  emptyText: { color: "#7A869A", fontSize: 14 },
-});
+function createStyles(colors: Colors) {
+  return StyleSheet.create({
+    tilesRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
+    tile: { flex: 0.31, backgroundColor: colors.surface, borderRadius: 20, padding: 14, alignItems: "center" },
+    tileLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "700", letterSpacing: 0.5, marginBottom: 6 },
+    tileValue: { color: colors.textPrimary, fontSize: 16, fontWeight: "700" },
+    sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
+    catRow: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 10 },
+    catRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+    catName: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
+    catAmount: { color: colors.textPrimary, fontSize: 14, fontWeight: "700" },
+    progressBg: { height: 6, backgroundColor: colors.background, borderRadius: 3, overflow: "hidden" },
+    progressFill: { height: 6, backgroundColor: colors.accent, borderRadius: 3 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
+    emptyText: { color: colors.textSecondary, fontSize: 14 },
+  });
+}
