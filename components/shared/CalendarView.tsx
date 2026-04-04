@@ -1,5 +1,6 @@
 import { useTheme } from "@/context/ThemeContext";
 import { Colors } from "@/context/ThemeContext";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MONTH_NAMES, WEEK_DAYS, buildCalendarDays, formatDate } from "@/lib/dateUtils";
@@ -14,6 +15,7 @@ type Props = {
 
 export default function CalendarView({ transactions, categories }: Props) {
   const { colors } = useTheme();
+  const router = useRouter();
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [selected, setSelected] = useState<string | null>(null);
@@ -95,6 +97,12 @@ export default function CalendarView({ transactions, categories }: Props) {
               <TxRow key={tx.id} tx={tx} category={categoryMap.get(tx.category_id)} />
             ))
           )}
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push({ pathname: "/add-transaction", params: { date: selected } })}
+          >
+            <Text style={styles.addButtonText}>+ Add Transaction</Text>
+          </TouchableOpacity>
         </>
       )}
     </>
@@ -115,5 +123,7 @@ function createStyles(colors: Colors) {
     sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
     emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
     emptyText: { color: colors.textSecondary, fontSize: 14 },
+    addButton: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 12, alignItems: "center", marginTop: 12 },
+    addButtonText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
   });
 }
