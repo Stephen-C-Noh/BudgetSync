@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Colors } from "@/context/ThemeContext";
+import { formatDate } from "@/lib/dateUtils";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -19,11 +20,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-/** Formats a Date object to a YYYY-MM-DD string. */
-function formatDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
 
 /** Returns the earliest selectable date: January 1, 2000. */
 function getMinDate(): Date {
