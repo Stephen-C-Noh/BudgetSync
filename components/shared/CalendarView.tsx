@@ -99,7 +99,10 @@ export default function CalendarView({ transactions, categories }: Props) {
           )}
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push({ pathname: "/add-transaction", params: { date: selected } })}
+            onPress={() => {
+              if (!selected) return;
+              router.push({ pathname: "/add-transaction", params: { date: selected } });
+            }}
           >
             <Text style={styles.addButtonText}>+ Add Transaction</Text>
           </TouchableOpacity>
