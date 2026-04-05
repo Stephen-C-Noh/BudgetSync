@@ -143,6 +143,19 @@ export default function BudgetGoalsScreen() {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
+    // Re-validate that the selected category still exists and is an expense
+    // category. A background sync could have removed or changed it while the
+    // modal was open; SQLite FK enforcement is off so nothing else blocks this.
+    const selectedCategory = categories.find((c) => c.id === goalCategoryId);
+    if (!selectedCategory || selectedCategory.type !== "expense") {
+      Alert.alert(
+        "Invalid Category",
+        "The selected category is no longer available. Please choose another.",
+      );
+      setGoalCategoryId("");
+      return;
+    }
+
     // Re-validate at save time: a background sync may have added a goal for
     // this category+period while the modal was open, which insertBudgetGoal
     // would not detect — it has no deduplication logic.
