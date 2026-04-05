@@ -1,7 +1,9 @@
 import {
+  deleteAccount as dbDeleteAccount,
   deleteBudgetGoal as dbDeleteBudgetGoal,
   deleteCategory as dbDeleteCategory,
   deleteTransaction as dbDeleteTransaction,
+  updateAccount as dbUpdateAccount,
   updateTransaction as dbUpdateTransaction,
   getAccounts,
   getBudgetGoals,
@@ -64,6 +66,8 @@ interface AppContextType {
 
 interface AppActionsType {
   addAccount: (account: Account) => Promise<void>;
+  updateAccount: (account: Account) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
   updateTransaction: (transaction: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
@@ -208,6 +212,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  /**
+   * Persists all mutable field changes to an account and refreshes local state.
+   * Does not adjust transaction history — balance is stored directly.
+   */
+  const updateAccount = async (account: Account) => {
+    await dbUpdateAccount(account);
+    setAccounts((prev) => prev.map((a) => (a.id === account.id ? account : a)));
+    if (syncUserRef.current) {
+      try {
+        await pushAccounts([account], syncUserRef.current.id);
+      } catch {
+        /* retry on next sync */
+      }
+    }
+  };
+
+  /**
+   * Deletes an account and removes it from local state.
+   * Transactions that reference this account are left intact (orphan-safe).
+   */
+  const deleteAccount = async (id: string) => {
+    await dbDeleteAccount(id);
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
+  };
+
   const addTransaction = async (transaction: Transaction) => {
     await insertTransaction(transaction);
     // Update account balance
@@ -344,6 +373,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     <AppActionsContext.Provider
       value={{
         addAccount,
+        updateAccount,
+        deleteAccount,
         addTransaction,
         updateTransaction,
         deleteTransaction,
