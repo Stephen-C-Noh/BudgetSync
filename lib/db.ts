@@ -235,15 +235,28 @@ export async function updateCategory(
   icon?: string,
 ): Promise<void> {
   const database = await db;
-  await database.runAsync(
+  const result = await database.runAsync(
     "UPDATE categories SET name=?, icon=? WHERE id=? AND is_custom=1",
     [name, icon ?? null, id],
   );
+  if (result.changes === 0) {
+    throw new Error(
+      `Failed to update category ${id}: not found or not a custom category.`,
+    );
+  }
 }
 
 export async function deleteCategory(id: string): Promise<void> {
   const database = await db;
-  await database.runAsync("DELETE FROM categories WHERE id = ?", [id]);
+  const result = await database.runAsync(
+    "DELETE FROM categories WHERE id=? AND is_custom=1",
+    [id],
+  );
+  if (result.changes === 0) {
+    throw new Error(
+      `Failed to delete category ${id}: not found or not a custom category.`,
+    );
+  }
 }
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
