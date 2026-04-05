@@ -169,8 +169,12 @@ export default function BudgetGoalsScreen() {
       );
       return;
     }
-    const amount = parseFloat(goalAmountStr);
-    if (isNaN(amount) || amount <= 0) {
+    // Normalise comma decimal separators (e.g. "10,50" -> "10.50") before
+    // parsing, since parseFloat("10,50") silently truncates to 10.
+    const normalised = goalAmountStr.trim().replace(",", ".");
+    const amount = parseFloat(normalised);
+    // isFinite rejects Infinity and NaN — both would pass the isNaN + > 0 check alone
+    if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid amount greater than zero.");
       return;
     }
@@ -282,7 +286,10 @@ export default function BudgetGoalsScreen() {
               const spent = goal.period === "monthly"
                 ? (monthlySpentByCategory[goal.category_id] ?? 0)
                 : 0;
-              const pct = Math.min((spent / goal.limit_amount) * 100, 100);
+              // Guard against division by zero for legacy/invalid goals
+              const pct = goal.limit_amount > 0
+                ? Math.min((spent / goal.limit_amount) * 100, 100)
+                : 0;
               const isOver = spent > goal.limit_amount;
 
               return (
