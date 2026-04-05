@@ -4,7 +4,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { Colors } from "@/context/ThemeContext";
 import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -49,6 +49,12 @@ export default function BudgetGoalsScreen() {
   const [goalCategoryId, setGoalCategoryId] = useState("");
   const [goalAmountStr, setGoalAmountStr] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  /**
+   * Ref-based lock set synchronously at the top of handleSave.
+   * React state updates are async, so isSaving alone cannot prevent two rapid
+   * taps from both entering the save path before the first re-render fires.
+   */
+  const isSavingRef = useRef(false);
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 
@@ -137,10 +143,13 @@ export default function BudgetGoalsScreen() {
    * - Amount must parse as a valid float greater than zero.
    */
   async function handleSave() {
-    // Synchronous re-entrancy guard — prevents duplicate saves from rapid taps
-    if (isSaving) return;
+    // Ref-based synchronous guard must come first — isSaving state is async
+    // and cannot reliably block two rapid taps from both entering this path.
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     if (!goalCategoryId) {
       Alert.alert("No Category", "Please select a category.");
+      isSavingRef.current = false;
       return;
     }
     // Re-validate that the selected category still exists and is an expense
@@ -153,6 +162,7 @@ export default function BudgetGoalsScreen() {
         "The selected category is no longer available. Please choose another.",
       );
       setGoalCategoryId("");
+      isSavingRef.current = false;
       return;
     }
 
@@ -167,6 +177,10 @@ export default function BudgetGoalsScreen() {
         "Goal Already Exists",
         "A goal for this category and period was added while this form was open. Please choose a different category or period.",
       );
+      // Clear selection so the user is not stuck — the category is no longer
+      // in availableCategories and Save would keep failing otherwise.
+      setGoalCategoryId("");
+      isSavingRef.current = false;
       return;
     }
     // Normalise comma decimal separators (e.g. "10,50" -> "10.50") before
@@ -176,6 +190,7 @@ export default function BudgetGoalsScreen() {
     // isFinite rejects Infinity and NaN — both would pass the isNaN + > 0 check alone
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid amount greater than zero.");
+      isSavingRef.current = false;
       return;
     }
 
@@ -192,6 +207,7 @@ export default function BudgetGoalsScreen() {
     } catch {
       Alert.alert("Save Failed", "We couldn't save this goal. Please try again.");
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   }
