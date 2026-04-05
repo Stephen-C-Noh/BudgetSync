@@ -175,30 +175,34 @@ export default function AccountsMonthlyView({ accounts }: Props) {
 
     setIsSaving(true);
 
-    if (editingAccount) {
-      // Edit mode — preserve immutable fields (id, currency, created_at)
-      await updateAccount({
-        ...editingAccount,
-        name: trimmed,
-        type: accountType,
-        balance,
-        last4: last4.trim() || undefined,
-      });
-    } else {
-      // Add mode
-      await addAccount({
-        id: Crypto.randomUUID(),
-        name: trimmed,
-        type: accountType,
-        balance,
-        last4: last4.trim() || undefined,
-        currency: userProfile?.currency ?? "USD",
-        created_at: new Date().toISOString(),
-      });
+    try {
+      if (editingAccount) {
+        // Edit mode — preserve immutable fields (id, currency, created_at)
+        await updateAccount({
+          ...editingAccount,
+          name: trimmed,
+          type: accountType,
+          balance,
+          last4: last4.trim() || undefined,
+        });
+      } else {
+        // Add mode
+        await addAccount({
+          id: Crypto.randomUUID(),
+          name: trimmed,
+          type: accountType,
+          balance,
+          last4: last4.trim() || undefined,
+          currency: userProfile?.currency ?? "USD",
+          created_at: new Date().toISOString(),
+        });
+      }
+      setModalVisible(false);
+    } catch {
+      Alert.alert("Save Failed", "We couldn't save this account. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsSaving(false);
-    setModalVisible(false);
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -218,8 +222,12 @@ export default function AccountsMonthlyView({ accounts }: Props) {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            await deleteAccount(editingAccount.id);
-            setModalVisible(false);
+            try {
+              await deleteAccount(editingAccount.id);
+              setModalVisible(false);
+            } catch {
+              Alert.alert("Delete Failed", "We couldn't delete this account. Please try again.");
+            }
           },
         },
       ],
@@ -447,7 +455,13 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                       styles.typePill,
                       accountType === t.key && styles.typePillActive,
                     ]}
-                    onPress={() => setAccountType(t.key)}
+                    onPress={() => {
+                      setAccountType(t.key);
+                      // Clear last4 when switching to a type that doesn't support it
+                      if (t.key !== "bank" && t.key !== "credit_card") {
+                        setLast4("");
+                      }
+                    }}
                   >
                     <Text
                       style={[
