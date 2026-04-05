@@ -310,10 +310,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    * Persists name and icon changes to a category and updates local state.
    * Type and is_custom are immutable after creation.
    */
+  /**
+   * Persists name and icon changes to a category and updates local state.
+   * Type and is_custom are immutable after creation — this function rejects
+   * updates that attempt to change them, and only applies name/icon to state
+   * so local state cannot diverge from the DB schema.
+   */
   const updateCategory = async (category: Category) => {
+    const existing = categories.find((c) => c.id === category.id);
+    if (
+      existing &&
+      (existing.type !== category.type ||
+        existing.is_custom !== category.is_custom)
+    ) {
+      throw new Error(
+        "Category type and is_custom cannot be changed after creation.",
+      );
+    }
     await dbUpdateCategory(category.id, category.name, category.icon);
+    // Only apply the mutable fields to state to stay in sync with the DB
     setCategories((prev) =>
-      prev.map((c) => (c.id === category.id ? category : c)),
+      prev.map((c) =>
+        c.id === category.id
+          ? { ...c, name: category.name, icon: category.icon }
+          : c,
+      ),
     );
   };
 

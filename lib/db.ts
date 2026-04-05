@@ -236,7 +236,7 @@ export async function updateCategory(
 ): Promise<void> {
   const database = await db;
   await database.runAsync(
-    "UPDATE categories SET name=?, icon=? WHERE id=?",
+    "UPDATE categories SET name=?, icon=? WHERE id=? AND is_custom=1",
     [name, icon ?? null, id],
   );
 }

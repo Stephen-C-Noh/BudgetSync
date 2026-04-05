@@ -287,7 +287,10 @@ export default function CategorySettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               {/*
                * In edit mode, show the type as a read-only label.
                * Changing a category's type is blocked because it would silently
