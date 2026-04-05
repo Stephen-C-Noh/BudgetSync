@@ -69,6 +69,10 @@ export default function BudgetGoalsScreen() {
     return map;
   }, [transactions, currentYear, currentMonth]);
 
+  /**
+   * Monthly goals only, used for the summary card at the top of the screen.
+   * All goals (any period) are shown in the category list below.
+   */
   const monthlyGoals = useMemo(
     () => budgetGoals.filter((g) => g.period === "monthly"),
     [budgetGoals],
@@ -133,6 +137,8 @@ export default function BudgetGoalsScreen() {
    * - Amount must parse as a valid float greater than zero.
    */
   async function handleSave() {
+    // Synchronous re-entrancy guard — prevents duplicate saves from rapid taps
+    if (isSaving) return;
     if (!goalCategoryId) {
       Alert.alert("No Category", "Please select a category.");
       return;
@@ -233,15 +239,23 @@ export default function BudgetGoalsScreen() {
 
         <Text style={styles.sectionLabel}>CATEGORY GOALS</Text>
 
+        {/*
+         * Show all goals regardless of period. Monthly goals also drive the
+         * summary card above; weekly/yearly goals are visible and deletable here.
+         * A period badge on each row makes the period explicit.
+         */}
         <View style={styles.card}>
-          {monthlyGoals.length === 0 ? (
+          {budgetGoals.length === 0 ? (
             <View style={styles.emptyRow}>
               <Text style={styles.emptyText}>No budget goals yet.</Text>
             </View>
           ) : (
-            monthlyGoals.map((goal, index) => {
+            budgetGoals.map((goal, index) => {
               const cat = categoryMap.get(goal.category_id);
-              const spent = monthlySpentByCategory[goal.category_id] ?? 0;
+              // Progress bar is only meaningful for monthly goals (we have monthly spend data)
+              const spent = goal.period === "monthly"
+                ? (monthlySpentByCategory[goal.category_id] ?? 0)
+                : 0;
               const pct = Math.min((spent / goal.limit_amount) * 100, 100);
               const isOver = spent > goal.limit_amount;
 
@@ -257,37 +271,56 @@ export default function BudgetGoalsScreen() {
                           <Text style={styles.goalCategory}>
                             {cat?.name ?? "Unknown"}
                           </Text>
+                          {/* Period badge so weekly/yearly goals are identifiable */}
+                          <View style={styles.periodBadge}>
+                            <Text style={styles.periodBadgeText}>
+                              {goal.period.toUpperCase()}
+                            </Text>
+                          </View>
                           {isOver && (
                             <View style={styles.overBadge}>
                               <Text style={styles.overBadgeText}>OVER</Text>
                             </View>
                           )}
                         </View>
-                        <View style={styles.goalBarTrack}>
-                          <View
-                            style={[
-                              styles.goalBarFill,
-                              {
-                                width: `${pct}%` as any,
-                                backgroundColor: isOver
-                                  ? colors.expense
-                                  : colors.accent,
-                              },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.goalAmounts}>
-                          $
-                          {spent.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          / $
-                          {goal.limit_amount.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </Text>
+                        {goal.period === "monthly" && (
+                          <>
+                            <View style={styles.goalBarTrack}>
+                              <View
+                                style={[
+                                  styles.goalBarFill,
+                                  {
+                                    width: `${pct}%` as any,
+                                    backgroundColor: isOver
+                                      ? colors.expense
+                                      : colors.accent,
+                                  },
+                                ]}
+                              />
+                            </View>
+                            <Text style={styles.goalAmounts}>
+                              $
+                              {spent.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              / $
+                              {goal.limit_amount.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </Text>
+                          </>
+                        )}
+                        {goal.period !== "monthly" && (
+                          <Text style={styles.goalAmounts}>
+                            Limit: $
+                            {goal.limit_amount.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </Text>
+                        )}
                       </View>
                     </View>
                     <TouchableOpacity onPress={() => handleDelete(goal.id)}>
@@ -298,7 +331,7 @@ export default function BudgetGoalsScreen() {
                       />
                     </TouchableOpacity>
                   </View>
-                  {index < monthlyGoals.length - 1 && (
+                  {index < budgetGoals.length - 1 && (
                     <View style={styles.divider} />
                   )}
                 </View>
@@ -329,7 +362,7 @@ export default function BudgetGoalsScreen() {
         visible={modalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => { if (!isSaving) setModalVisible(false); }}
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -339,8 +372,16 @@ export default function BudgetGoalsScreen() {
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Budget Goal</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              {/* Disabled while saving to prevent closing mid-flight */}
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                disabled={isSaving}
+              >
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={isSaving ? colors.textDisabled : colors.textSecondary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -551,6 +592,15 @@ function createStyles(colors: Colors) {
       marginBottom: 8,
     },
     goalCategory: { color: colors.textPrimary, fontSize: 15, fontWeight: "600" },
+    /** Small pill showing the goal's period (WEEKLY / MONTHLY / YEARLY). */
+    periodBadge: {
+      backgroundColor: colors.accentSubtle,
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      marginLeft: 8,
+    },
+    periodBadgeText: { color: colors.accent, fontSize: 9, fontWeight: "800" },
     overBadge: {
       backgroundColor: colors.overBadgeBg,
       borderRadius: 6,
