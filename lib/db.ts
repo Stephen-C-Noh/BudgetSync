@@ -161,6 +161,43 @@ export async function updateAccountBalance(
   ]);
 }
 
+/**
+ * Updates all mutable fields of an existing account.
+ *
+ * Balance is stored directly on the account row and set to whatever the caller
+ * provides — this is intentional for manual edits.  The caller is responsible
+ * for not accidentally overwriting a balance that was adjusted by a transaction.
+ *
+ * @param account - Full account object; the `id` field identifies the row to update.
+ */
+export async function updateAccount(account: Account): Promise<void> {
+  const database = await db;
+  await database.runAsync(
+    "UPDATE accounts SET name=?, type=?, balance=?, last4=?, currency=? WHERE id=?",
+    [
+      account.name,
+      account.type,
+      account.balance,
+      account.last4 ?? null,
+      account.currency,
+      account.id,
+    ],
+  );
+}
+
+/**
+ * Deletes an account by id.
+ *
+ * Transactions that reference this account via `account_id` are intentionally
+ * left intact (orphan-safe) — they will simply no longer resolve to a live account.
+ *
+ * @param id - UUID of the account to delete.
+ */
+export async function deleteAccount(id: string): Promise<void> {
+  const database = await db;
+  await database.runAsync("DELETE FROM accounts WHERE id=?", [id]);
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export async function getCategories(): Promise<Category[]> {
