@@ -314,8 +314,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
   const updateCategory = async (category: Category) => {
     const existing = categories.find((c) => c.id === category.id);
+    if (!existing) {
+      throw new Error("Category not found.");
+    }
     // Built-in categories are read-only
-    if (existing?.is_custom !== 1) {
+    if (existing.is_custom !== 1) {
       throw new Error("Built-in categories cannot be edited.");
     }
     if (
