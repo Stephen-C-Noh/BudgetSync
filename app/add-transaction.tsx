@@ -2,12 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Colors } from "@/context/ThemeContext";
+import { formatDate } from "@/lib/dateUtils";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +20,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+/** Returns the earliest selectable date: January 1, 2000. */
+function getMinDate(): Date {
+  return new Date(2000, 0, 1);
+}
+
+/** Returns the latest selectable date: today + 1 year. */
+function getMaxDate(): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d;
+}
 
 export default function AddTransactionScreen() {
   const router = useRouter();
@@ -31,14 +47,53 @@ export default function AddTransactionScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
+
+  // Build the initial date string from route param or today
   const _d = new Date();
-  const today = dateParam ?? `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
+  const todayStr = formatDate(_d);
+
+  /**
+   * The currently selected date as a YYYY-MM-DD string.
+   * Initialized from the `date` route param when navigating from a calendar view,
+   * otherwise defaults to today.
+   */
+  const [selectedDate, setSelectedDate] = useState<string>(dateParam ?? todayStr);
+
+  /** Whether the date picker UI is currently visible. */
+  const [showPicker, setShowPicker] = useState(false);
+
+  /** The Date object derived from selectedDate, used by the native DateTimePicker. */
+  const pickerDate = useMemo(() => {
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }, [selectedDate]);
+
   const filteredCategories = categories.filter((c) => c.type === type);
   const primaryAccount = accounts[0] ?? null;
 
   function handleTypeChange(newType: "expense" | "income") {
     setType(newType);
     setSelectedCategoryId(null);
+  }
+
+  /**
+   * Handles a date selection from the native DateTimePicker.
+   * On Android the picker dismisses automatically; on iOS the user
+   * must tap "Done" to confirm (handled by `handleIOSConfirm`).
+   */
+  function handleDateChange(_event: DateTimePickerEvent, date?: Date) {
+    if (Platform.OS === "android") {
+      setShowPicker(false);
+      if (date) setSelectedDate(formatDate(date));
+    } else {
+      // iOS: update the picker preview live but keep modal open
+      if (date) setSelectedDate(formatDate(date));
+    }
+  }
+
+  /** Confirms the selected date on iOS and closes the modal. */
+  function handleIOSConfirm() {
+    setShowPicker(false);
   }
 
   async function handleSave() {
@@ -65,7 +120,7 @@ export default function AddTransactionScreen() {
       type,
       amount: parsed,
       note: note.trim() || undefined,
-      date: today,
+      date: selectedDate,
       created_at: now,
       synced: 0,
     });
@@ -141,12 +196,56 @@ export default function AddTransactionScreen() {
           ))}
         </View>
 
-        {/* Date */}
+        {/* Date — tapping opens the native date picker */}
         <Text style={styles.fieldLabel}>DATE</Text>
-        <View style={styles.fieldRow}>
-          <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-          <Text style={styles.fieldValue}>{today}</Text>
-        </View>
+        <TouchableOpacity style={styles.fieldRow} onPress={() => setShowPicker(true)}>
+          <Ionicons name="calendar-outline" size={18} color={colors.accent} style={{ marginRight: 10 }} />
+          <Text style={styles.fieldValue}>{selectedDate}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} style={styles.fieldChevron} />
+        </TouchableOpacity>
+
+        {/* Android: render the picker directly (it shows as a native dialog) */}
+        {Platform.OS === "android" && showPicker && (
+          <DateTimePicker
+            value={pickerDate}
+            mode="date"
+            display="default"
+            minimumDate={getMinDate()}
+            maximumDate={getMaxDate()}
+            onChange={handleDateChange}
+          />
+        )}
+
+        {/* iOS: render the picker inside a modal with a Done button */}
+        {Platform.OS === "ios" && (
+          <Modal
+            visible={showPicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowPicker(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Date</Text>
+                  <TouchableOpacity onPress={handleIOSConfirm} style={styles.modalDoneBtn}>
+                    <Text style={styles.modalDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={pickerDate}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={getMinDate()}
+                  maximumDate={getMaxDate()}
+                  onChange={handleDateChange}
+                  style={styles.iosPicker}
+                  textColor={colors.textPrimary}
+                />
+              </View>
+            </View>
+          </Modal>
+        )}
 
         {/* Account */}
         <Text style={styles.fieldLabel}>
@@ -275,7 +374,9 @@ function createStyles(colors: Colors) {
       padding: 16,
       marginBottom: 24,
     },
-    fieldValue: { color: colors.textPrimary, fontSize: 15 },
+    fieldValue: { color: colors.textPrimary, fontSize: 15, flex: 1 },
+    /** Pushes the chevron to the far right of the date row. */
+    fieldChevron: { marginLeft: "auto" },
 
     noteInput: {
       backgroundColor: colors.surface,
@@ -299,5 +400,33 @@ function createStyles(colors: Colors) {
 
     backLink: { alignItems: "center", marginBottom: 8 },
     backLinkText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600", letterSpacing: 1 },
+
+    // ── iOS date picker modal ──────────────────────────────────────────────
+    /** Semi-transparent backdrop that fills the screen. */
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: colors.overlay,
+    },
+    /** Bottom sheet container for the iOS picker. */
+    modalSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 32,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    modalTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
+    modalDoneBtn: { paddingVertical: 4, paddingHorizontal: 8 },
+    modalDoneText: { color: colors.accent, fontSize: 16, fontWeight: "700" },
+    iosPicker: { width: "100%" },
   });
 }
