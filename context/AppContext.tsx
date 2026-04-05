@@ -2,6 +2,7 @@ import {
   deleteAccount as dbDeleteAccount,
   deleteBudgetGoal as dbDeleteBudgetGoal,
   deleteCategory as dbDeleteCategory,
+  updateCategory as dbUpdateCategory,
   deleteTransaction as dbDeleteTransaction,
   updateAccount as dbUpdateAccount,
   updateTransaction as dbUpdateTransaction,
@@ -72,6 +73,7 @@ interface AppActionsType {
   updateTransaction: (transaction: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addCategory: (category: Category) => Promise<void>;
+  updateCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   addBudgetGoal: (goal: BudgetGoal) => Promise<void>;
   deleteBudgetGoal: (id: string) => Promise<void>;
@@ -304,6 +306,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCategories((prev) => [...prev, category]);
   };
 
+  /**
+   * Persists name and icon changes to a category and updates local state.
+   * Type and is_custom are immutable after creation.
+   */
+  const updateCategory = async (category: Category) => {
+    await dbUpdateCategory(category.id, category.name, category.icon);
+    setCategories((prev) =>
+      prev.map((c) => (c.id === category.id ? category : c)),
+    );
+  };
+
   const deleteCategory = async (id: string) => {
     await dbDeleteCategory(id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
@@ -379,6 +392,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         updateTransaction,
         deleteTransaction,
         addCategory,
+        updateCategory,
         deleteCategory,
         addBudgetGoal,
         deleteBudgetGoal,

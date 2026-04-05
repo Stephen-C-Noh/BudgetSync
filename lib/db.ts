@@ -219,6 +219,28 @@ export async function insertCategory(category: Category): Promise<void> {
   );
 }
 
+/**
+ * Updates the name and icon of an existing category.
+ * The `type` and `is_custom` fields are intentionally excluded from the update:
+ * changing a category's type would silently corrupt existing transactions that
+ * reference it, and `is_custom` is set once at creation time.
+ *
+ * @param id   - UUID of the category to update.
+ * @param name - New display name.
+ * @param icon - New emoji icon (optional).
+ */
+export async function updateCategory(
+  id: string,
+  name: string,
+  icon?: string,
+): Promise<void> {
+  const database = await db;
+  await database.runAsync(
+    "UPDATE categories SET name=?, icon=? WHERE id=?",
+    [name, icon ?? null, id],
+  );
+}
+
 export async function deleteCategory(id: string): Promise<void> {
   const database = await db;
   await database.runAsync("DELETE FROM categories WHERE id = ?", [id]);
