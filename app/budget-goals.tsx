@@ -143,6 +143,19 @@ export default function BudgetGoalsScreen() {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
+    // Re-validate at save time: a background sync may have added a goal for
+    // this category+period while the modal was open, which insertBudgetGoal
+    // would not detect — it has no deduplication logic.
+    const isDuplicate = budgetGoals.some(
+      (g) => g.category_id === goalCategoryId && g.period === goalPeriod,
+    );
+    if (isDuplicate) {
+      Alert.alert(
+        "Goal Already Exists",
+        "A goal for this category and period was added while this form was open. Please choose a different category or period.",
+      );
+      return;
+    }
     const amount = parseFloat(goalAmountStr);
     if (isNaN(amount) || amount <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid amount greater than zero.");
