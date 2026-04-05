@@ -2,42 +2,155 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Colors } from "@/context/ThemeContext";
+import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Category } from "@/lib/types";
 
+/**
+ * Manages custom categories: view, add, edit, and delete.
+ *
+ * Built-in categories (is_custom === 0) are displayed read-only.
+ * Only custom categories (is_custom === 1) expose the edit and delete controls.
+ */
 export default function CategorySettingsScreen() {
   const router = useRouter();
   const { categories, isLoading } = useAppState();
-  const { deleteCategory } = useAppActions();
+  const { addCategory, updateCategory, deleteCategory } = useAppActions();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<"expense" | "income">("expense");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  // ─── Modal state ──────────────────────────────────────────────────────────
+  const [modalVisible, setModalVisible] = useState(false);
+
+  /**
+   * The category being edited, or null when the modal is in "Add" mode.
+   * Drives title, button label, and whether the type selector is shown.
+   */
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+
+  const [nameInput, setNameInput] = useState("");
+  const [iconInput, setIconInput] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // ─── Filtered list ────────────────────────────────────────────────────────
   const displayCategories = useMemo(
     () => categories.filter((c) => c.type === activeTab),
-    [categories, activeTab]
+    [categories, activeTab],
   );
 
-  function handleDelete(id: string) {
-    Alert.alert("Delete Category", "Are you sure you want to delete this category?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => deleteCategory(id),
-      },
-    ]);
+  // ─── Modal helpers ────────────────────────────────────────────────────────
+
+  /** Opens the modal in "Add" mode with empty fields. */
+  function openAddModal() {
+    setEditingCat(null);
+    setNameInput("");
+    setIconInput("");
+    setModalVisible(true);
   }
+
+  /**
+   * Opens the modal in "Edit" mode pre-filled with the selected category.
+   * Only callable for is_custom === 1 categories.
+   *
+   * @param cat - The custom category to edit.
+   */
+  function openEditModal(cat: Category) {
+    setEditingCat(cat);
+    setNameInput(cat.name);
+    setIconInput(cat.icon ?? "");
+    setModalVisible(true);
+  }
+
+  // ─── Save ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Validates inputs then either adds a new custom category or updates the
+   * existing one, depending on whether `editingCat` is set.
+   *
+   * Validation: name must not be blank after trimming.
+   */
+  async function handleSave() {
+    const trimmedName = nameInput.trim();
+    if (!trimmedName) {
+      Alert.alert("Missing Name", "Please enter a category name.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (editingCat) {
+        // Edit mode: only name and icon can change, type is immutable
+        await updateCategory({
+          ...editingCat,
+          name: trimmedName,
+          icon: iconInput.trim() || undefined,
+        });
+      } else {
+        // Add mode: type comes from the active tab, always custom
+        await addCategory({
+          id: Crypto.randomUUID(),
+          name: trimmedName,
+          icon: iconInput.trim() || undefined,
+          type: activeTab,
+          is_custom: 1,
+        });
+      }
+      setModalVisible(false);
+    } catch {
+      Alert.alert("Save Failed", "We couldn't save this category. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // ─── Delete ───────────────────────────────────────────────────────────────
+
+  /**
+   * Confirms and deletes a custom category.
+   * Guards against deleting built-in categories (is_custom === 0) as a
+   * second line of defence behind the UI hiding the trash icon.
+   *
+   * @param cat - The category to delete.
+   */
+  function handleDelete(cat: Category) {
+    if (cat.is_custom !== 1) return;
+    Alert.alert(
+      "Delete Category",
+      "Are you sure you want to delete this category?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteCategory(cat.id);
+            } catch {
+              Alert.alert("Delete Failed", "We couldn't delete this category. Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -49,8 +162,12 @@ export default function CategorySettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 15, paddingRight: 10 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginLeft: 15, paddingRight: 10 }}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.accent} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Category Settings</Text>
@@ -77,7 +194,10 @@ export default function CategorySettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         <View style={styles.card}>
           {displayCategories.length === 0 ? (
             <View style={styles.emptyRow}>
@@ -93,31 +213,142 @@ export default function CategorySettingsScreen() {
                     </View>
                     <Text style={styles.categoryName}>{cat.name}</Text>
                   </View>
-                  <View style={styles.categoryActions}>
-                    <TouchableOpacity style={styles.actionBtn}>
-                      <Ionicons name="pencil-outline" size={18} color={colors.accent} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { marginLeft: 8 }]}
-                      onPress={() => handleDelete(cat.id)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                    </TouchableOpacity>
-                  </View>
+
+                  {/*
+                   * Edit and delete controls are only rendered for custom categories.
+                   * Built-in categories (is_custom === 0) are intentionally read-only
+                   * to prevent corrupting the default data set.
+                   */}
+                  {cat.is_custom === 1 && (
+                    <View style={styles.categoryActions}>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => openEditModal(cat)}
+                      >
+                        <Ionicons
+                          name="pencil-outline"
+                          size={18}
+                          color={colors.accent}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { marginLeft: 8 }]}
+                        onPress={() => handleDelete(cat)}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={18}
+                          color={colors.danger}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-                {index < displayCategories.length - 1 && <View style={styles.divider} />}
+                {index < displayCategories.length - 1 && (
+                  <View style={styles.divider} />
+                )}
               </View>
             ))
           )}
         </View>
 
-        <TouchableOpacity style={styles.addBtn}>
-          <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
+        <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.85}>
+          <Ionicons
+            name="add-circle-outline"
+            size={20}
+            color={colors.onAccent}
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.addBtnText}>Add Custom Category</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ─── Add / Edit Category Bottom Sheet ─── */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.modalSheet}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingCat ? "Edit Category" : "Add Category"}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/*
+               * In edit mode, show the type as a read-only label.
+               * Changing a category's type is blocked because it would silently
+               * corrupt all transactions that reference this category.
+               */}
+              {editingCat && (
+                <>
+                  <Text style={styles.fieldLabel}>TYPE</Text>
+                  <View style={styles.readOnlyField}>
+                    <Text style={styles.readOnlyText}>
+                      {editingCat.type.charAt(0).toUpperCase() + editingCat.type.slice(1)}
+                    </Text>
+                    <Ionicons name="lock-closed-outline" size={14} color={colors.textDisabled} />
+                  </View>
+                </>
+              )}
+
+              {/* Category Name */}
+              <Text style={styles.fieldLabel}>CATEGORY NAME</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. Coffee"
+                placeholderTextColor={colors.textDisabled}
+                value={nameInput}
+                onChangeText={setNameInput}
+              />
+
+              {/* Emoji Icon */}
+              <Text style={styles.fieldLabel}>ICON (EMOJI)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. ☕"
+                placeholderTextColor={colors.textDisabled}
+                value={iconInput}
+                onChangeText={setIconInput}
+              />
+
+              {/* Save button */}
+              <TouchableOpacity
+                style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={isSaving}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.saveButtonText}>
+                  {isSaving
+                    ? "Saving..."
+                    : editingCat
+                      ? "Update Category →"
+                      : "Save Category →"}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -141,13 +372,23 @@ function createStyles(colors: Colors) {
       marginHorizontal: 20,
       marginBottom: 20,
     },
-    toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+    toggleBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 10,
+      alignItems: "center",
+    },
     toggleActive: { backgroundColor: colors.accent },
     toggleText: { color: colors.textSecondary, fontWeight: "600", fontSize: 15 },
     toggleTextActive: { color: colors.onAccent, fontWeight: "700" },
 
     scroll: { paddingHorizontal: 20 },
-    card: { backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden", marginBottom: 16 },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      overflow: "hidden",
+      marginBottom: 16,
+    },
 
     emptyRow: { padding: 20, alignItems: "center" },
     emptyText: { color: colors.textSecondary, fontSize: 14 },
@@ -179,7 +420,11 @@ function createStyles(colors: Colors) {
       justifyContent: "center",
       alignItems: "center",
     },
-    divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginHorizontal: 16,
+    },
 
     addBtn: {
       backgroundColor: colors.accent,
@@ -190,5 +435,67 @@ function createStyles(colors: Colors) {
       alignItems: "center",
     },
     addBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+
+    // ─── Modal ───────────────────────────────────────────────────────────────
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: colors.overlay,
+    },
+    modalSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      maxHeight: "80%",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    modalTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700" },
+
+    fieldLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 1,
+      marginBottom: 10,
+    },
+    textInput: {
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 16,
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginBottom: 24,
+    },
+
+    /** Read-only type row shown in edit mode to make the lock visible. */
+    readOnlyField: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.surfaceDisabled,
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 24,
+    },
+    readOnlyText: {
+      color: colors.textDisabled,
+      fontSize: 15,
+    },
+
+    saveButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 17,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    saveButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
   });
 }

@@ -2,6 +2,7 @@ import {
   deleteAccount as dbDeleteAccount,
   deleteBudgetGoal as dbDeleteBudgetGoal,
   deleteCategory as dbDeleteCategory,
+  updateCategory as dbUpdateCategory,
   deleteTransaction as dbDeleteTransaction,
   updateAccount as dbUpdateAccount,
   updateTransaction as dbUpdateTransaction,
@@ -72,6 +73,7 @@ interface AppActionsType {
   updateTransaction: (transaction: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addCategory: (category: Category) => Promise<void>;
+  updateCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   addBudgetGoal: (goal: BudgetGoal) => Promise<void>;
   deleteBudgetGoal: (id: string) => Promise<void>;
@@ -304,6 +306,40 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCategories((prev) => [...prev, category]);
   };
 
+  /**
+   * Persists name and icon changes to a category and updates local state.
+   * Type and is_custom are immutable after creation — this function rejects
+   * updates that attempt to change them or target a built-in category, and
+   * only applies name/icon to state so local state cannot diverge from the DB.
+   */
+  const updateCategory = async (category: Category) => {
+    const existing = categories.find((c) => c.id === category.id);
+    if (!existing) {
+      throw new Error("Category not found.");
+    }
+    // Built-in categories are read-only
+    if (existing.is_custom !== 1) {
+      throw new Error("Built-in categories cannot be edited.");
+    }
+    if (
+      existing.type !== category.type ||
+      existing.is_custom !== category.is_custom
+    ) {
+      throw new Error(
+        "Category type and is_custom cannot be changed after creation.",
+      );
+    }
+    await dbUpdateCategory(category.id, category.name, category.icon);
+    // Only apply the mutable fields to state to stay in sync with the DB
+    setCategories((prev) =>
+      prev.map((c) =>
+        c.id === category.id
+          ? { ...c, name: category.name, icon: category.icon }
+          : c,
+      ),
+    );
+  };
+
   const deleteCategory = async (id: string) => {
     await dbDeleteCategory(id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
@@ -379,6 +415,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         updateTransaction,
         deleteTransaction,
         addCategory,
+        updateCategory,
         deleteCategory,
         addBudgetGoal,
         deleteBudgetGoal,
