@@ -9,7 +9,10 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -45,27 +48,58 @@ export default function SettingsScreen() {
     settings.find((s) => s.key === "weekly_digest")?.value === "1";
 
   // ─── CSV Export state ─────────────────────────────────────────────────────
+  type ExportMode = "month" | "range";
   const now = new Date();
+
+  // Confirmed export selection
+  const [exportMode, setExportMode] = useState<ExportMode>("month");
   const [exportYear, setExportYear] = useState(now.getFullYear());
   const [exportMonth, setExportMonth] = useState(now.getMonth() + 1); // 1-12
+  const [exportFromYear, setExportFromYear] = useState(now.getFullYear());
+  const [exportFromMonth, setExportFromMonth] = useState(now.getMonth() + 1);
+  const [exportToYear, setExportToYear] = useState(now.getFullYear());
+  const [exportToMonth, setExportToMonth] = useState(now.getMonth() + 1);
   const [isExporting, setIsExporting] = useState(false);
 
-  function prevMonth() {
-    if (exportMonth === 1) {
-      setExportMonth(12);
-      setExportYear((y) => y - 1);
-    } else {
-      setExportMonth((m) => m - 1);
-    }
+  // ─── Month picker modal state ─────────────────────────────────────────────
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerTab, setPickerTab] = useState<ExportMode>("month");
+  // Year shown in the single-month grid
+  const [pickerYear, setPickerYear] = useState(now.getFullYear());
+  // Draft from/to while the range picker is open — applied only on "Apply"
+  const [draftFromYear, setDraftFromYear] = useState(now.getFullYear());
+  const [draftFromMonth, setDraftFromMonth] = useState(now.getMonth() + 1);
+  const [draftToYear, setDraftToYear] = useState(now.getFullYear());
+  const [draftToMonth, setDraftToMonth] = useState(now.getMonth() + 1);
+
+  /** Opens the picker modal and seeds its internal state from the current confirmed selection. */
+  function openPicker() {
+    setPickerTab(exportMode);
+    setPickerYear(exportYear);
+    setDraftFromYear(exportFromYear);
+    setDraftFromMonth(exportFromMonth);
+    setDraftToYear(exportToYear);
+    setDraftToMonth(exportToMonth);
+    setPickerVisible(true);
   }
 
-  function nextMonth() {
-    if (exportMonth === 12) {
-      setExportMonth(1);
-      setExportYear((y) => y + 1);
-    } else {
-      setExportMonth((m) => m + 1);
+  /**
+   * Confirms the range selection. Validates that "To" is not before "From"
+   * before writing to export state and closing the modal.
+   */
+  function handleApplyRange() {
+    const fromVal = draftFromYear * 12 + draftFromMonth;
+    const toVal = draftToYear * 12 + draftToMonth;
+    if (toVal < fromVal) {
+      Alert.alert("Invalid Range", '"To" month cannot be before "From" month.');
+      return;
     }
+    setExportMode("range");
+    setExportFromYear(draftFromYear);
+    setExportFromMonth(draftFromMonth);
+    setExportToYear(draftToYear);
+    setExportToMonth(draftToMonth);
+    setPickerVisible(false);
   }
 
   /**
@@ -80,13 +114,23 @@ export default function SettingsScreen() {
   }
 
   /**
-   * Filters transactions to the selected month/year and builds a CSV string.
+   * Filters transactions to the selected period and builds a CSV string.
+   * Both modes are unified into a range comparison — single month is the
+   * case where start and end prefixes are equal.
    * Category and account columns use human-readable names, not raw UUIDs.
    * Returns null when there are no transactions in the selected period.
    */
   function buildCsvExport(): string | null {
-    const prefix = `${exportYear}-${String(exportMonth).padStart(2, "0")}`;
-    const filtered = transactions.filter((t) => t.date.startsWith(prefix));
+    const startPrefix = exportMode === "month"
+      ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
+      : `${exportFromYear}-${String(exportFromMonth).padStart(2, "0")}`;
+    const endPrefix = exportMode === "month"
+      ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
+      : `${exportToYear}-${String(exportToMonth).padStart(2, "0")}`;
+    const filtered = transactions.filter((t) => {
+      const monthPrefix = t.date.substring(0, 7);
+      return monthPrefix >= startPrefix && monthPrefix <= endPrefix;
+    });
     if (filtered.length === 0) return null;
 
     const header = "Date,Type,Amount,Category,Account,Note";
@@ -109,22 +153,24 @@ export default function SettingsScreen() {
   }
 
   /**
-   * Generates the CSV for the selected month, writes it to a temporary cache
+   * Generates the CSV for the selected period, writes it to a temporary cache
    * file, then triggers the OS share sheet so the user can save or forward it.
    */
   async function handleExport() {
     const csv = buildCsvExport();
     if (!csv) {
-      Alert.alert(
-        "No Data",
-        `No transactions found for ${MONTH_NAMES[exportMonth - 1]} ${exportYear}.`,
-      );
+      const label = exportMode === "month"
+        ? `${MONTH_NAMES[exportMonth - 1]} ${exportYear}`
+        : `${MONTH_NAMES[exportFromMonth - 1]} ${exportFromYear} to ${MONTH_NAMES[exportToMonth - 1]} ${exportToYear}`;
+      Alert.alert("No Data", `No transactions found for ${label}.`);
       return;
     }
 
     setIsExporting(true);
     try {
-      const fileName = `budgetsync_${exportYear}_${String(exportMonth).padStart(2, "0")}.csv`;
+      const fileName = exportMode === "month"
+        ? `budgetsync_${exportYear}_${String(exportMonth).padStart(2, "0")}.csv`
+        : `budgetsync_${exportFromYear}${String(exportFromMonth).padStart(2, "0")}_${exportToYear}${String(exportToMonth).padStart(2, "0")}.csv`;
       const file = new File(Paths.cache, fileName);
       file.create({ overwrite: true });
       file.write(csv);
@@ -323,18 +369,22 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionTitle}>DATA EXPORT</Text>
         <View style={styles.card}>
-          {/* Month selector: tap the arrows to navigate to the desired month */}
-          <View style={styles.monthPickerRow}>
-            <TouchableOpacity style={styles.monthArrow} onPress={prevMonth}>
-              <Ionicons name="chevron-back" size={20} color={colors.accent} />
-            </TouchableOpacity>
-            <Text style={styles.monthLabel}>
-              {MONTH_NAMES[exportMonth - 1]} {exportYear}
-            </Text>
-            <TouchableOpacity style={styles.monthArrow} onPress={nextMonth}>
-              <Ionicons name="chevron-forward" size={20} color={colors.accent} />
-            </TouchableOpacity>
-          </View>
+          {/* Tappable row showing the current period selection */}
+          <TouchableOpacity
+            style={styles.monthPickerRow}
+            onPress={openPicker}
+            activeOpacity={0.7}
+          >
+            <View>
+              <Text style={styles.monthLabel}>
+                {exportMode === "month"
+                  ? `${MONTH_NAMES[exportMonth - 1]} ${exportYear}`
+                  : `${MONTH_NAMES[exportFromMonth - 1]} ${exportFromYear} to ${MONTH_NAMES[exportToMonth - 1]} ${exportToYear}`}
+              </Text>
+              <Text style={styles.monthSubLabel}>Tap to change period</Text>
+            </View>
+            <Ionicons name="calendar-outline" size={20} color={colors.accent} />
+          </TouchableOpacity>
           <View style={styles.itemDivider} />
           <TouchableOpacity
             style={[styles.exportBtn, isExporting && { opacity: 0.6 }]}
@@ -378,6 +428,180 @@ export default function SettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ─── Period Picker Modal ─── */}
+      <Modal
+        visible={pickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.pickerSheet}>
+            {/* Header */}
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Period</Text>
+              <TouchableOpacity onPress={() => setPickerVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Month / Range tab toggle */}
+            <View style={styles.pickerToggle}>
+              {(["month", "range"] as ExportMode[]).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.pickerTabBtn, pickerTab === tab && styles.pickerTabActive]}
+                  onPress={() => setPickerTab(tab)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.pickerTabText, pickerTab === tab && styles.pickerTabTextActive]}>
+                    {tab === "month" ? "Month" : "Range"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {pickerTab === "month" ? (
+                <>
+                  {/* Year navigation */}
+                  <View style={styles.yearRow}>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setPickerYear((y) => y - 1)}
+                    >
+                      <Ionicons name="chevron-back" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                    <Text style={styles.yearLabel}>{pickerYear}</Text>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setPickerYear((y) => y + 1)}
+                    >
+                      <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Month grid — tap to confirm and close */}
+                  <View style={styles.monthGrid}>
+                    {MONTH_NAMES.map((name, i) => {
+                      const month = i + 1;
+                      const isSelected =
+                        exportMode === "month" &&
+                        exportYear === pickerYear &&
+                        exportMonth === month;
+                      return (
+                        <TouchableOpacity
+                          key={name}
+                          style={[styles.monthCell, isSelected && styles.monthCellActive]}
+                          onPress={() => {
+                            setExportMode("month");
+                            setExportYear(pickerYear);
+                            setExportMonth(month);
+                            setPickerVisible(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.monthCellText, isSelected && styles.monthCellTextActive]}>
+                            {name.slice(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : (
+                <>
+                  {/* From picker */}
+                  <Text style={styles.rangeLabel}>FROM</Text>
+                  <View style={styles.yearRow}>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftFromYear((y) => y - 1)}
+                    >
+                      <Ionicons name="chevron-back" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                    <Text style={styles.yearLabel}>{draftFromYear}</Text>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftFromYear((y) => y + 1)}
+                    >
+                      <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.monthGrid}>
+                    {MONTH_NAMES.map((name, i) => {
+                      const month = i + 1;
+                      const isSelected = draftFromMonth === month;
+                      return (
+                        <TouchableOpacity
+                          key={name}
+                          style={[styles.monthCell, isSelected && styles.monthCellActive]}
+                          onPress={() => setDraftFromMonth(month)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.monthCellText, isSelected && styles.monthCellTextActive]}>
+                            {name.slice(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* To picker */}
+                  <Text style={[styles.rangeLabel, { marginTop: 8 }]}>TO</Text>
+                  <View style={styles.yearRow}>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftToYear((y) => y - 1)}
+                    >
+                      <Ionicons name="chevron-back" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                    <Text style={styles.yearLabel}>{draftToYear}</Text>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftToYear((y) => y + 1)}
+                    >
+                      <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.monthGrid}>
+                    {MONTH_NAMES.map((name, i) => {
+                      const month = i + 1;
+                      const isSelected = draftToMonth === month;
+                      return (
+                        <TouchableOpacity
+                          key={name}
+                          style={[styles.monthCell, isSelected && styles.monthCellActive]}
+                          onPress={() => setDraftToMonth(month)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.monthCellText, isSelected && styles.monthCellTextActive]}>
+                            {name.slice(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Apply button */}
+                  <TouchableOpacity
+                    style={styles.applyBtn}
+                    onPress={handleApplyRange}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.applyBtnText}>Apply Range</Text>
+                  </TouchableOpacity>
+                  <View style={{ height: 8 }} />
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -527,7 +751,65 @@ function createStyles(colors: Colors) {
       justifyContent: "space-between",
       padding: 16,
     },
-    monthArrow: {
+    monthLabel: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    monthSubLabel: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    // ─── Picker modal ───────────────────────────────────────────────────────
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: colors.overlay,
+    },
+    pickerSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      paddingBottom: 12,
+      maxHeight: "85%",
+    },
+    pickerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    pickerTitle: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    pickerToggle: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 4,
+      marginBottom: 20,
+    },
+    pickerTabBtn: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 10,
+      alignItems: "center",
+    },
+    pickerTabActive: { backgroundColor: colors.accent },
+    pickerTabText: { color: colors.textSecondary, fontWeight: "600", fontSize: 14 },
+    pickerTabTextActive: { color: colors.onAccent, fontWeight: "700" },
+    yearRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    yearArrow: {
       width: 36,
       height: 36,
       borderRadius: 10,
@@ -535,8 +817,52 @@ function createStyles(colors: Colors) {
       justifyContent: "center",
       alignItems: "center",
     },
-    monthLabel: {
+    yearLabel: {
       color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: "700",
+    },
+    monthGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 16,
+    },
+    monthCell: {
+      width: "22%",
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+    },
+    monthCellActive: {
+      backgroundColor: colors.accent,
+    },
+    monthCellText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    monthCellTextActive: {
+      color: colors.onAccent,
+      fontWeight: "700",
+    },
+    rangeLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 1,
+      marginBottom: 12,
+    },
+    applyBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    applyBtnText: {
+      color: colors.onAccent,
       fontSize: 16,
       fontWeight: "700",
     },
