@@ -187,7 +187,8 @@ export default function BudgetGoalsScreen() {
     // parsing, since parseFloat("10,50") silently truncates to 10.
     const normalised = goalAmountStr.trim().replace(",", ".");
     const amount = parseFloat(normalised);
-    // isFinite rejects Infinity and NaN — both would pass the isNaN + > 0 check alone
+    // Number.isFinite rejects non-finite values like Infinity/-Infinity;
+    // NaN would already be rejected by a typical isNaN(amount) || amount <= 0 guard.
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert("Invalid Amount", "Please enter a valid amount greater than zero.");
       isSavingRef.current = false;
@@ -640,7 +641,7 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginBottom: 8,
     },
-    goalCategory: { color: colors.textPrimary, fontSize: 15, fontWeight: "600" },
+    goalCategory: { color: colors.textPrimary, fontSize: 15, fontWeight: "600", flexShrink: 1 },
     /** Small pill showing the goal's period (WEEKLY / MONTHLY / YEARLY). */
     periodBadge: {
       backgroundColor: colors.accentSubtle,
