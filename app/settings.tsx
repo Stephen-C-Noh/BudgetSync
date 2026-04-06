@@ -102,15 +102,19 @@ export default function SettingsScreen() {
   }
 
   /**
-   * Wraps a CSV field in double-quotes if it contains commas, quotes,
-   * carriage returns, or newlines. Internal double-quotes are escaped by
-   * doubling them (RFC 4180).
+   * Sanitises and escapes a single CSV field per RFC 4180.
+   * Leading formula characters (=, +, -, @) are prefixed with a single quote
+   * to prevent spreadsheet formula injection when the file is opened in
+   * Excel or Google Sheets. Fields containing commas, quotes, carriage
+   * returns, or newlines are wrapped in double-quotes, with any internal
+   * double-quotes doubled.
    */
   function escapeCsvField(value: string): string {
-    if (/[",\r\n]/.test(value)) {
-      return `"${value.replace(/"/g, '""')}"`;
+    const safeValue = /^[=+\-@]/.test(value) ? `'${value}` : value;
+    if (/[",\r\n]/.test(safeValue)) {
+      return `"${safeValue.replace(/"/g, '""')}"`;
     }
-    return value;
+    return safeValue;
   }
 
   /**
@@ -144,7 +148,7 @@ export default function SettingsScreen() {
       return [
         escapeCsvField(t.date),
         escapeCsvField(t.type),
-        String(t.amount),
+        t.amount.toFixed(2),
         escapeCsvField(categoryName),
         escapeCsvField(accountName),
         escapeCsvField(t.note ?? ""),
