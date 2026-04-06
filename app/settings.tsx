@@ -2,8 +2,10 @@ import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { File, Paths } from "expo-file-system";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import * as Sharing from "expo-sharing";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,9 +27,14 @@ interface MenuRowProps {
   styles: ReturnType<typeof createStyles>;
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export default function SettingsScreen() {
   const router = useRouter();
-  const { userProfile, isLoading, settings } = useAppState();
+  const { userProfile, isLoading, settings, accounts, categories, transactions } = useAppState();
   const { updateSetting } = useAppActions();
   const { colors, colorScheme, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -36,6 +43,105 @@ export default function SettingsScreen() {
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
   const weeklyDigest =
     settings.find((s) => s.key === "weekly_digest")?.value === "1";
+
+  // ─── CSV Export state ─────────────────────────────────────────────────────
+  const now = new Date();
+  const [exportYear, setExportYear] = useState(now.getFullYear());
+  const [exportMonth, setExportMonth] = useState(now.getMonth() + 1); // 1-12
+  const [isExporting, setIsExporting] = useState(false);
+
+  function prevMonth() {
+    if (exportMonth === 1) {
+      setExportMonth(12);
+      setExportYear((y) => y - 1);
+    } else {
+      setExportMonth((m) => m - 1);
+    }
+  }
+
+  function nextMonth() {
+    if (exportMonth === 12) {
+      setExportMonth(1);
+      setExportYear((y) => y + 1);
+    } else {
+      setExportMonth((m) => m + 1);
+    }
+  }
+
+  /**
+   * Wraps a CSV field in double-quotes if it contains commas, quotes, or
+   * newlines. Internal double-quotes are escaped by doubling them (RFC 4180).
+   */
+  function escapeCsvField(value: string): string {
+    if (/[",\n]/.test(value)) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  }
+
+  /**
+   * Filters transactions to the selected month/year and builds a CSV string.
+   * Category and account columns use human-readable names, not raw UUIDs.
+   * Returns null when there are no transactions in the selected period.
+   */
+  function buildCsvExport(): string | null {
+    const prefix = `${exportYear}-${String(exportMonth).padStart(2, "0")}`;
+    const filtered = transactions.filter((t) => t.date.startsWith(prefix));
+    if (filtered.length === 0) return null;
+
+    const header = "Date,Type,Amount,Category,Account,Note";
+    const rows = filtered.map((t) => {
+      const categoryName =
+        categories.find((c) => c.id === t.category_id)?.name ?? t.category_id;
+      const accountName =
+        accounts.find((a) => a.id === t.account_id)?.name ?? t.account_id;
+      return [
+        escapeCsvField(t.date),
+        escapeCsvField(t.type),
+        String(t.amount),
+        escapeCsvField(categoryName),
+        escapeCsvField(accountName),
+        escapeCsvField(t.note ?? ""),
+      ].join(",");
+    });
+
+    return [header, ...rows].join("\n");
+  }
+
+  /**
+   * Generates the CSV for the selected month, writes it to a temporary cache
+   * file, then triggers the OS share sheet so the user can save or forward it.
+   */
+  async function handleExport() {
+    const csv = buildCsvExport();
+    if (!csv) {
+      Alert.alert(
+        "No Data",
+        `No transactions found for ${MONTH_NAMES[exportMonth - 1]} ${exportYear}.`,
+      );
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const fileName = `budgetsync_${exportYear}_${String(exportMonth).padStart(2, "0")}.csv`;
+      const file = new File(Paths.cache, fileName);
+      file.create({ overwrite: true });
+      file.write(csv);
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "text/csv",
+        dialogTitle: "Export Transactions",
+        UTI: "public.comma-separated-values-text",
+      });
+    } catch {
+      Alert.alert(
+        "Export Failed",
+        "We couldn't export your transactions. Please try again.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -215,6 +321,39 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>DATA EXPORT</Text>
+        <View style={styles.card}>
+          {/* Month selector: tap the arrows to navigate to the desired month */}
+          <View style={styles.monthPickerRow}>
+            <TouchableOpacity style={styles.monthArrow} onPress={prevMonth}>
+              <Ionicons name="chevron-back" size={20} color={colors.accent} />
+            </TouchableOpacity>
+            <Text style={styles.monthLabel}>
+              {MONTH_NAMES[exportMonth - 1]} {exportYear}
+            </Text>
+            <TouchableOpacity style={styles.monthArrow} onPress={nextMonth}>
+              <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.itemDivider} />
+          <TouchableOpacity
+            style={[styles.exportBtn, isExporting && { opacity: 0.6 }]}
+            onPress={handleExport}
+            disabled={isExporting}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="download-outline"
+              size={18}
+              color={colors.onAccent}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.exportBtnText}>
+              {isExporting ? "Exporting..." : "Export CSV"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>SECURITY</Text>
         <TouchableOpacity style={styles.actionBtn}>
           <MaterialCommunityIcons
@@ -381,6 +520,39 @@ function createStyles(colors: Colors) {
     },
     themeModeButtonTextActive: {
       color: colors.accent,
+    },
+    monthPickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 16,
+    },
+    monthArrow: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.accentBg,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    monthLabel: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    exportBtn: {
+      flexDirection: "row",
+      backgroundColor: colors.accent,
+      margin: 16,
+      borderRadius: 14,
+      paddingVertical: 14,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    exportBtnText: {
+      color: colors.onAccent,
+      fontSize: 15,
+      fontWeight: "700",
     },
     actionBtn: {
       flexDirection: "row",
