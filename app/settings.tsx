@@ -2,6 +2,7 @@ import EditNameModal from "@/components/shared/EditNameModal";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
+import { updateSupabasePassword } from "@/lib/supabase";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
 import { useRouter } from "expo-router";
@@ -10,12 +11,15 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -50,6 +54,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const {
     userProfile,
+    syncUser,
     isLoading,
     settings,
     accounts,
@@ -62,6 +67,11 @@ export default function SettingsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isPassModalVisible, setIsPassModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const budgetAlerts =
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
@@ -261,6 +271,45 @@ export default function SettingsScreen() {
     await updateUserProfile({ ...userProfile, name });
   }
 
+  // NEW PASSWORD LOGIC
+  async function handleSavePassword() {
+    if (!syncUser) {
+      Alert.alert("Security", "Connect sync first to change password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert("Weak Password", "Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const errorMsg = await updateSupabasePassword(newPassword);
+      if (errorMsg) {
+        Alert.alert("Update Failed", errorMsg);
+      } else {
+        Alert.alert("Success", "Password updated successfully.");
+        closePassModal();
+      }
+    } catch {
+      Alert.alert("Update Failed", "Something went wrong. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function closePassModal() {
+    setIsPassModalVisible(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setIsSaving(false);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <EditNameModal
@@ -269,6 +318,50 @@ export default function SettingsScreen() {
         onSave={handleSaveName}
         onClose={() => setIsEditModalVisible(false)}
       />
+
+      {/* Password Modal */}
+      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={closePassModal}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Update Password</Text>
+
+            <View style={{ position: 'relative' }}>
+              <TextInput
+                style={styles.textInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 15, top: 15 }}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.textInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm Password"
+              placeholderTextColor={colors.textSecondary}
+              secureTextEntry={!showPassword}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={closePassModal} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSavePassword} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
+                {isSaving ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Update</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -450,7 +543,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>SECURITY</Text>
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => setIsPassModalVisible(true)}>
           <MaterialCommunityIcons
             name="refresh"
             size={20}
@@ -854,6 +947,13 @@ function createStyles(colors: Colors) {
       fontSize: 12,
       marginTop: 2,
     },
+    // ─── Password modal ─────────────────────────────────────────────────────
+    modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+    textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
+    modalButtons: { flexDirection: "row", gap: 12, marginTop: 8 },
+    modalBtn: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center" },
+
     // ─── Picker modal ───────────────────────────────────────────────────────
     modalOverlay: {
       flex: 1,
