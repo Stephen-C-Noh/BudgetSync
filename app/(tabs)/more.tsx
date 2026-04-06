@@ -1,11 +1,21 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
 import { clearPIN } from "@/lib/auth";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SimpleLinkProps {
@@ -18,16 +28,20 @@ interface SimpleLinkProps {
 export default function MoreScreen() {
   const router = useRouter();
   const { userProfile, settings, syncUser } = useAppState();
-  const { updateSetting } = useAppActions();
+  const { updateSetting, updateUserProfile } = useAppActions();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [newName, setNewName] = useState(userProfile?.name || "");
+  const [isSaving, setIsSaving] = useState(false);
 
   const isBiometricsEnabled =
     settings.find((s) => s.key === "biometrics_enabled")?.value === "true";
 
   async function handleBiometricsToggle(value: boolean) {
     if (value) {
-      // Enrollment handled by set-pin screen (sets PIN, tries biometrics, saves setting)
       router.push("/set-pin");
     } else {
       await clearPIN();
@@ -35,8 +49,52 @@ export default function MoreScreen() {
     }
   }
 
+  async function handleSaveName() {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      Alert.alert("Error", "Name cannot be empty");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      if (userProfile) {
+        await updateUserProfile({ ...userProfile, name: trimmed });
+      }
+      setIsEditModalVisible(false);
+    } catch (error) {
+      Alert.alert("Error", "Failed to update name");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* ADDED MODAL - Standard logic to match Settings */}
+      <Modal visible={isEditModalVisible} transparent animationType="fade" onRequestClose={() => setIsEditModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Full Name</Text>
+            <TextInput
+              style={styles.textInput}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Enter full name"
+              placeholderTextColor={colors.textSecondary}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={() => setIsEditModalVisible(false)} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveName} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
+                {isSaving ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollPadding}>
         <Text style={styles.mainTitle}>More</Text>
 
@@ -46,7 +104,14 @@ export default function MoreScreen() {
               <View style={styles.avatarCircleLarge}>
                 <MaterialCommunityIcons name="account" size={48} color={colors.accent} />
               </View>
-              <TouchableOpacity style={styles.editBadgeLarge}>
+              {/* WIRED PENCIL */}
+              <TouchableOpacity
+                style={styles.editBadgeLarge}
+                onPress={() => {
+                  setNewName(userProfile?.name || "");
+                  setIsEditModalVisible(true);
+                }}
+              >
                 <MaterialCommunityIcons name="pencil" size={14} color={colors.onAccent} />
               </TouchableOpacity>
             </View>
@@ -59,29 +124,11 @@ export default function MoreScreen() {
 
         <Text style={styles.sectionTitle}>PREFERENCES</Text>
         <View style={styles.card}>
-          <SimpleLink
-            icon="settings-outline"
-            label="Settings"
-            onPress={() => router.push("/settings")}
-            colors={colors}
-            styles={styles}
-          />
+          <SimpleLink icon="settings-outline" label="Settings" onPress={() => router.push("/settings")} colors={colors} styles={styles} />
           <View style={styles.itemDivider} />
-          <SimpleLink
-            icon="shapes-outline"
-            label="Category Settings"
-            onPress={() => router.push("/category-settings")}
-            colors={colors}
-            styles={styles}
-          />
+          <SimpleLink icon="shapes-outline" label="Category Settings" onPress={() => router.push("/category-settings")} colors={colors} styles={styles} />
           <View style={styles.itemDivider} />
-          <SimpleLink
-            icon="speedometer-outline"
-            label="Budget Goals"
-            onPress={() => router.push("/budget-goals")}
-            colors={colors}
-            styles={styles}
-          />
+          <SimpleLink icon="speedometer-outline" label="Budget Goals" onPress={() => router.push("/budget-goals")} colors={colors} styles={styles} />
         </View>
 
         <Text style={styles.sectionTitle}>PRIVACY & SECURITY</Text>
@@ -107,19 +154,12 @@ export default function MoreScreen() {
 
         <Text style={styles.sectionTitle}>CLOUD SYNC</Text>
         <View style={styles.card}>
-          <TouchableOpacity
-            style={styles.menuItemRow}
-            onPress={() => router.push("/sync-login")}
-          >
+          <TouchableOpacity style={styles.menuItemRow} onPress={() => router.push("/sync-login")}>
             <View style={styles.menuLeft}>
-              <View style={styles.iconBox}>
-                <Ionicons name="cloud-outline" size={20} color={colors.accent} />
-              </View>
+              <View style={styles.iconBox}><Ionicons name="cloud-outline" size={20} color={colors.accent} /></View>
               <View>
                 <Text style={styles.itemTitleText}>Cloud Sync</Text>
-                <Text style={styles.itemSubText}>
-                  {syncUser ? syncUser.email : "Not connected"}
-                </Text>
+                <Text style={styles.itemSubText}>{syncUser ? syncUser.email : "Not connected"}</Text>
               </View>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -183,5 +223,12 @@ function createStyles(colors: Colors) {
     syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.syncConnected },
     iconBoxDisabled: { backgroundColor: colors.surfaceDisabled },
     itemTitleDisabled: { color: colors.textDisabled },
+
+    modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center", alignItems: "center", padding: 20 },
+    modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+    textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 24 },
+    modalButtons: { flexDirection: "row", gap: 12 },
+    modalBtn: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center" },
   });
 }
