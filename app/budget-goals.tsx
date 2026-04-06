@@ -263,7 +263,7 @@ export default function BudgetGoalsScreen() {
                   style={[
                     styles.progressFill,
                     {
-                      width: `${Math.min((totalSpent / totalBudget) * 100, 100)}%` as any,
+                      width: `${totalBudget > 0 ? Math.min((totalSpent / totalBudget) * 100, 100) : 0}%` as any,
                       backgroundColor:
                         totalSpent > totalBudget ? colors.expense : colors.accent,
                     },
