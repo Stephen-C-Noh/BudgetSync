@@ -9,10 +9,8 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Linking,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -35,6 +33,8 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+type ExportMode = "month" | "range";
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile, isLoading, settings, accounts, categories, transactions } = useAppState();
@@ -48,7 +48,6 @@ export default function SettingsScreen() {
     settings.find((s) => s.key === "weekly_digest")?.value === "1";
 
   // ─── CSV Export state ─────────────────────────────────────────────────────
-  type ExportMode = "month" | "range";
   const now = new Date();
 
   // Confirmed export selection
@@ -436,10 +435,7 @@ export default function SettingsScreen() {
         transparent
         onRequestClose={() => setPickerVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.pickerSheet}>
             {/* Header */}
             <View style={styles.pickerHeader}>
@@ -600,7 +596,7 @@ export default function SettingsScreen() {
               )}
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
