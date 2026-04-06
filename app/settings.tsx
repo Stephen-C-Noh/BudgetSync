@@ -102,11 +102,12 @@ export default function SettingsScreen() {
   }
 
   /**
-   * Wraps a CSV field in double-quotes if it contains commas, quotes, or
-   * newlines. Internal double-quotes are escaped by doubling them (RFC 4180).
+   * Wraps a CSV field in double-quotes if it contains commas, quotes,
+   * carriage returns, or newlines. Internal double-quotes are escaped by
+   * doubling them (RFC 4180).
    */
   function escapeCsvField(value: string): string {
-    if (/[",\n]/.test(value)) {
+    if (/[",\r\n]/.test(value)) {
       return `"${value.replace(/"/g, '""')}"`;
     }
     return value;
@@ -132,12 +133,14 @@ export default function SettingsScreen() {
     });
     if (filtered.length === 0) return null;
 
+    // Precompute id-to-name maps for O(1) lookups per row instead of O(n*m)
+    const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+    const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
+
     const header = "Date,Type,Amount,Category,Account,Note";
     const rows = filtered.map((t) => {
-      const categoryName =
-        categories.find((c) => c.id === t.category_id)?.name ?? t.category_id;
-      const accountName =
-        accounts.find((a) => a.id === t.account_id)?.name ?? t.account_id;
+      const categoryName = categoryNameById.get(t.category_id) ?? t.category_id;
+      const accountName = accountNameById.get(t.account_id) ?? t.account_id;
       return [
         escapeCsvField(t.date),
         escapeCsvField(t.type),
