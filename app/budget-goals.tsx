@@ -34,10 +34,12 @@ const PERIODS: { key: BudgetGoal["period"]; label: string }[] = [
  */
 export default function BudgetGoalsScreen() {
   const router = useRouter();
-  const { budgetGoals, categories, transactions, isLoading } = useAppState();
+  const { budgetGoals, categories, transactions, isLoading, userProfile } = useAppState();
   const { deleteBudgetGoal, addBudgetGoal } = useAppActions();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const currency = userProfile?.currency ?? "CAD";
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -268,10 +270,10 @@ export default function BudgetGoalsScreen() {
               </View>
               <View style={styles.summaryFooter}>
                 <Text style={styles.summaryMuted}>
-                  Spent: ${totalSpent.toLocaleString()}
+                  Spent: {currency} {totalSpent.toLocaleString()}
                 </Text>
                 <Text style={styles.summaryMuted}>
-                  Remaining: ${Math.max(totalBudget - totalSpent, 0).toLocaleString()}
+                  Remaining: {currency} {Math.max(totalBudget - totalSpent, 0).toLocaleString()}
                 </Text>
               </View>
             </>
@@ -346,13 +348,11 @@ export default function BudgetGoalsScreen() {
                               />
                             </View>
                             <Text style={styles.goalAmounts}>
-                              $
-                              {spent.toLocaleString("en-US", {
+                              {currency} {spent.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}{" "}
-                              / $
-                              {goal.limit_amount.toLocaleString("en-US", {
+                              / {currency} {goal.limit_amount.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
@@ -361,8 +361,7 @@ export default function BudgetGoalsScreen() {
                         )}
                         {goal.period !== "monthly" && (
                           <Text style={styles.goalAmounts}>
-                            Limit: $
-                            {goal.limit_amount.toLocaleString("en-US", {
+                            Limit: {currency} {goal.limit_amount.toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}

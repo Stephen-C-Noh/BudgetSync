@@ -1,7 +1,9 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import NavRow from "@/components/shared/NavRow";
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { MONTH_NAMES } from "@/lib/dateUtils";
+import { Account } from "@/lib/types";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import React, { useMemo, useState } from "react";
 import {
@@ -16,11 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MONTH_NAMES } from "@/lib/dateUtils";
-import { Account } from "@/lib/types";
-import NavRow from "@/components/shared/NavRow";
 
-/** Maps each account type to its display label, icon, and theme colors. */
 const ACCOUNT_TYPE_META = (
   colors: Colors,
 ): Record<
@@ -53,7 +51,6 @@ const ACCOUNT_TYPE_META = (
   },
 });
 
-/** Selectable account type options for the add/edit sheet. */
 const ACCOUNT_TYPES: { key: Account["type"]; label: string }[] = [
   { key: "cash", label: "Cash" },
   { key: "bank", label: "Bank" },
@@ -61,14 +58,12 @@ const ACCOUNT_TYPES: { key: Account["type"]; label: string }[] = [
   { key: "investment", label: "Investment" },
 ];
 
-type Props = { accounts: Account[] };
+type Props = {
+  accounts: Account[];
+  currency?: string;
+};
 
-/**
- * Displays a monthly net-worth summary, an asset/liability breakdown,
- * and a list of individual account cards. Each card is tappable to open
- * an edit sheet; a separate button opens the "Add Account" sheet.
- */
-export default function AccountsMonthlyView({ accounts }: Props) {
+export default function AccountsMonthlyView({ accounts, currency = "CAD" }: Props) {
   const { addAccount, updateAccount, deleteAccount } = useAppActions();
   const { userProfile } = useAppState();
   const { colors } = useTheme();
@@ -78,23 +73,15 @@ export default function AccountsMonthlyView({ accounts }: Props) {
   const accountTypeMeta = useMemo(() => ACCOUNT_TYPE_META(colors), [colors]);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // ─── Sheet visibility ──────────────────────────────────────────────────────
   const [modalVisible, setModalVisible] = useState(false);
-
-  /**
-   * The account currently being edited, or `null` when the sheet is in "Add" mode.
-   * Determines whether Save calls `addAccount` or `updateAccount`.
-   */
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
-  // ─── Form state ───────────────────────────────────────────────────────────
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState<Account["type"]>("bank");
   const [balanceStr, setBalanceStr] = useState("0.00");
   const [last4, setLast4] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // ─── Net-worth totals ─────────────────────────────────────────────────────
   const { netWorth, assets, liabilities } = useMemo(() => {
     let assets = 0,
       liabilities = 0;
@@ -105,7 +92,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
     return { netWorth: assets - liabilities, assets, liabilities };
   }, [accounts]);
 
-  // ─── Month navigation ─────────────────────────────────────────────────────
   function prevMonth() {
     if (month === 0) {
       setYear((y) => y - 1);
@@ -119,9 +105,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
     } else setMonth((m) => m + 1);
   }
 
-  // ─── Sheet helpers ────────────────────────────────────────────────────────
-
-  /** Opens the sheet in "Add" mode with all fields reset to defaults. */
   function openAddSheet() {
     setEditingAccount(null);
     setAccountName("");
@@ -131,12 +114,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
     setModalVisible(true);
   }
 
-  /**
-   * Opens the sheet in "Edit" mode, pre-filling every field with the
-   * selected account's current values.
-   *
-   * @param account - The account to edit.
-   */
   function openEditSheet(account: Account) {
     setEditingAccount(account);
     setAccountName(account.name);
@@ -146,17 +123,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
     setModalVisible(true);
   }
 
-  // ─── Save ─────────────────────────────────────────────────────────────────
-
-  /**
-   * Validates the form fields and either adds a new account or updates the
-   * existing one depending on whether `editingAccount` is set.
-   *
-   * Validation rules:
-   * - Account name must not be blank.
-   * - Balance must parse as a valid float.
-   * - `last4`, if provided, must match `/^\d{4}$/`.
-   */
   async function handleSave() {
     const trimmed = accountName.trim();
     if (!trimmed) {
@@ -177,7 +143,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
 
     try {
       if (editingAccount) {
-        // Edit mode — preserve immutable fields (id, currency, created_at)
         await updateAccount({
           ...editingAccount,
           name: trimmed,
@@ -186,14 +151,13 @@ export default function AccountsMonthlyView({ accounts }: Props) {
           last4: last4.trim() || undefined,
         });
       } else {
-        // Add mode
         await addAccount({
           id: Crypto.randomUUID(),
           name: trimmed,
           type: accountType,
           balance,
           last4: last4.trim() || undefined,
-          currency: userProfile?.currency ?? "USD",
+          currency: currency,
           created_at: new Date().toISOString(),
         });
       }
@@ -205,12 +169,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
     }
   }
 
-  // ─── Delete ───────────────────────────────────────────────────────────────
-
-  /**
-   * Shows a confirmation Alert before deleting the currently edited account.
-   * Transactions linked to this account are left intact (orphan-safe).
-   */
   function handleDelete() {
     if (!editingAccount) return;
     Alert.alert(
@@ -234,8 +192,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
     );
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
     <>
       <NavRow
@@ -244,12 +200,10 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         onNext={nextMonth}
       />
 
-      {/* Net Worth Summary Card */}
       <View style={styles.netWorthCard}>
         <Text style={styles.netWorthLabel}>Net Worth</Text>
         <Text style={styles.netWorthValue}>
-          $
-          {netWorth.toLocaleString("en-US", {
+          {currency} {netWorth.toLocaleString("en-US", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
@@ -266,7 +220,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         </View>
       </View>
 
-      {/* Assets / Liabilities Boxes */}
       <View style={styles.row}>
         <View style={styles.box}>
           <View style={styles.boxHeader}>
@@ -285,8 +238,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
             <Text style={styles.boxTitle}>Assets</Text>
           </View>
           <Text style={styles.boxValue}>
-            $
-            {assets.toLocaleString("en-US", {
+            {currency} {assets.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -311,8 +263,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
             <Text style={styles.boxTitle}>Liabilities</Text>
           </View>
           <Text style={styles.boxValue}>
-            $
-            {liabilities.toLocaleString("en-US", {
+            {currency} {liabilities.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -321,7 +272,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         </View>
       </View>
 
-      {/* Account Breakdown — individual tappable cards */}
       <Text style={styles.sectionTitle}>ACCOUNT BREAKDOWN</Text>
       {accounts.length === 0 ? (
         <View style={styles.emptyState}>
@@ -329,10 +279,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         </View>
       ) : (
         accounts.map((account) => {
-          /*
-           * `cash` and `bank` share the same visual meta (wallet icon, blue tint).
-           * Normalise to "bank" so we always get a valid meta entry.
-           */
           const typeKey = account.type === "cash" ? "bank" : account.type;
           const meta = accountTypeMeta[typeKey] ?? accountTypeMeta.bank;
           const isCredit = account.type === "credit_card";
@@ -356,7 +302,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 </View>
                 <View>
                   <Text style={styles.accountName}>{account.name}</Text>
-                  {/* Show masked card number if last4 is set, otherwise show type label */}
                   <Text style={styles.accountSub}>
                     {account.last4 ? `•••• ${account.last4}` : meta.label}
                   </Text>
@@ -369,8 +314,7 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                     isCredit && { color: colors.danger },
                   ]}
                 >
-                  {isCredit ? "-" : ""}$
-                  {Math.abs(account.balance).toLocaleString("en-US", {
+                  {isCredit ? "-" : ""}{currency} {Math.abs(account.balance).toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -381,7 +325,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                   {isCredit ? "Credit" : "Stable"}
                 </Text>
               </View>
-              {/* Chevron hints that the card is tappable */}
               <Ionicons
                 name="chevron-forward"
                 size={16}
@@ -393,7 +336,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         })
       )}
 
-      {/* Add Account Button */}
       <TouchableOpacity
         style={styles.addButton}
         onPress={openAddSheet}
@@ -408,7 +350,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         <Text style={styles.addButtonText}>+ Add Account</Text>
       </TouchableOpacity>
 
-      {/* ─── Add / Edit Account Bottom Sheet ─── */}
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -421,7 +362,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              {/* Title reflects current mode */}
               <Text style={styles.modalTitle}>
                 {editingAccount ? "Edit Account" : "Add Account"}
               </Text>
@@ -435,7 +375,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Account Name */}
               <Text style={styles.fieldLabel}>ACCOUNT NAME</Text>
               <TextInput
                 style={styles.textInput}
@@ -445,7 +384,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 onChangeText={setAccountName}
               />
 
-              {/* Account Type */}
               <Text style={styles.fieldLabel}>ACCOUNT TYPE</Text>
               <View style={styles.typeRow}>
                 {ACCOUNT_TYPES.map((t) => (
@@ -457,7 +395,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                     ]}
                     onPress={() => {
                       setAccountType(t.key);
-                      // Clear last4 when switching to a type that doesn't support it
                       if (t.key !== "bank" && t.key !== "credit_card") {
                         setLast4("");
                       }
@@ -475,12 +412,11 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 ))}
               </View>
 
-              {/* Balance — "OPENING BALANCE" for new accounts, "BALANCE" for edits */}
               <Text style={styles.fieldLabel}>
                 {editingAccount ? "BALANCE" : "OPENING BALANCE"}
               </Text>
               <View style={styles.balanceRow}>
-                <Text style={styles.balancePrefix}>$</Text>
+                <Text style={styles.balancePrefix}>{currency}</Text>
                 <TextInput
                   style={styles.balanceInput}
                   value={balanceStr}
@@ -490,7 +426,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 />
               </View>
 
-              {/* Last 4 digits — only relevant for bank and credit card accounts */}
               {(accountType === "bank" || accountType === "credit_card") && (
                 <>
                   <Text style={styles.fieldLabel}>
@@ -510,7 +445,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 </>
               )}
 
-              {/* Primary action */}
               <TouchableOpacity
                 style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
                 onPress={handleSave}
@@ -526,7 +460,6 @@ export default function AccountsMonthlyView({ accounts }: Props) {
                 </Text>
               </TouchableOpacity>
 
-              {/* Delete — only visible in edit mode */}
               {editingAccount && (
                 <TouchableOpacity
                   style={styles.deleteButton}
@@ -662,7 +595,6 @@ function createStyles(colors: Colors) {
     },
     accountTagGreen: { color: colors.chartAssets, fontSize: 11 },
     accountTagRed: { color: colors.danger, fontSize: 11 },
-    /** Subtle right-arrow to signal the card is tappable. */
     chevron: { marginLeft: 4 },
 
     emptyState: {
@@ -777,7 +709,6 @@ function createStyles(colors: Colors) {
     },
     saveButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
 
-    /** Danger-styled button shown only in edit mode for deleting an account. */
     deleteButton: {
       flexDirection: "row",
       justifyContent: "center",

@@ -1,7 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
+import HomeMonthlyView from "@/components/home/MonthlyView";
+import HomeSummaryView from "@/components/home/SummaryView";
+import CalendarView from "@/components/shared/CalendarView";
+import DailyView from "@/components/shared/DailyView";
 import { useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,18 +15,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import CalendarView from "@/components/shared/CalendarView";
-import DailyView from "@/components/shared/DailyView";
-import HomeMonthlyView from "@/components/home/MonthlyView";
-import HomeSummaryView from "@/components/home/SummaryView";
 
 const TABS = ["Daily", "Calendar", "Monthly", "Summary"];
 
 export default function TodayScreen() {
-  const { accounts, transactions, categories, isLoading } = useAppState();
+  // added the 'userProfile' here so the screen refreshes when settings change
+  const { accounts, transactions, categories, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState("Monthly");
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  //Define the currency string based on user settings
+  const currency = userProfile?.currency || "CAD";
 
   const today = new Date();
   const todayDisplay = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -57,17 +60,18 @@ export default function TodayScreen() {
           ))}
         </View>
 
+        {/* PASSED 'currency' to each view so they display the correct symbol */}
         {activeTab === "Daily" && (
-          <DailyView transactions={transactions} categories={categories} />
+          <DailyView transactions={transactions} categories={categories} currency={currency} />
         )}
         {activeTab === "Calendar" && (
-          <CalendarView transactions={transactions} categories={categories} />
+          <CalendarView transactions={transactions} categories={categories} currency={currency} />
         )}
         {activeTab === "Monthly" && (
-          <HomeMonthlyView accounts={accounts} transactions={transactions} categories={categories} />
+          <HomeMonthlyView accounts={accounts} transactions={transactions} categories={categories} currency={currency} />
         )}
         {activeTab === "Summary" && (
-          <HomeSummaryView transactions={transactions} categories={categories} />
+          <HomeSummaryView transactions={transactions} categories={categories} currency={currency} />
         )}
 
         <View style={{ height: 30 }} />

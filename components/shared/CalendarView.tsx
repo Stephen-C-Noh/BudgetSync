@@ -1,16 +1,16 @@
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { MONTH_NAMES, WEEK_DAYS, buildCalendarDays, formatDate } from "@/lib/dateUtils";
+import { Category, Transaction } from "@/lib/types";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { MONTH_NAMES, WEEK_DAYS, buildCalendarDays, formatDate } from "@/lib/dateUtils";
-import { Category, Transaction } from "@/lib/types";
 import NavRow from "./NavRow";
 import TxRow from "./TxRow";
 
 type Props = {
   transactions: Transaction[];
   categories: Category[];
+  currency?: string; //
 };
 
 export default function CalendarView({ transactions, categories }: Props) {
