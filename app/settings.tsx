@@ -2,6 +2,7 @@ import EditNameModal from "@/components/shared/EditNameModal";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
+import { updateSupabasePassword } from "@/lib/supabase";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
 import { useRouter } from "expo-router";
@@ -62,6 +63,11 @@ export default function SettingsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isPassModalVisible, setIsPassModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const budgetAlerts =
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
@@ -261,6 +267,35 @@ export default function SettingsScreen() {
     await updateUserProfile({ ...userProfile, name });
   }
 
+  // NEW PASSWORD LOGIC
+  async function handleSavePassword() {
+    if (!userProfile?.email) {
+      Alert.alert("Security", "Connect sync first to change password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert("Weak Password", "Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    setIsSaving(true);
+    const errorMsg = await updateSupabasePassword(newPassword);
+    setIsSaving(false);
+
+    if (errorMsg) {
+      Alert.alert("Update Failed", errorMsg);
+    } else {
+      Alert.alert("Success", "Password updated successfully.");
+      setIsPassModalVisible(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <EditNameModal
@@ -269,6 +304,50 @@ export default function SettingsScreen() {
         onSave={handleSaveName}
         onClose={() => setIsEditModalVisible(false)}
       />
+
+      {/* NEW PASSWORD MODAL (matches Name Modal style) */}
+      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={() => setIsPassModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Update Password</Text>
+
+            <View style={{ position: 'relative' }}>
+              <TextInput
+                style={styles.textInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 15, top: 15 }}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.textInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm Password"
+              placeholderTextColor={colors.textSecondary}
+              secureTextEntry={!showPassword}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={() => setIsPassModalVisible(false)} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSavePassword} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
+                {isSaving ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Update</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -450,7 +529,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>SECURITY</Text>
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => setIsPassModalVisible(true)}>
           <MaterialCommunityIcons
             name="refresh"
             size={20}
