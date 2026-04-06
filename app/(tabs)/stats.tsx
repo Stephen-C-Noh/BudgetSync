@@ -1,7 +1,7 @@
 import { useAppState } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -27,24 +27,33 @@ function getRecentMonths(count: number) {
       month: d.getMonth(),
     });
   }
-  return result;
+  // Reverse so the oldest is on the left and the newest (current) is on the right
+  return result.reverse();
 }
 
-const MONTH_OPTIONS = getRecentMonths(3);
+const MONTH_OPTIONS = getRecentMonths(12);
 
 export default function StatsScreen() {
-  // added pull userProfile here to get the currency
   const { transactions, categories, budgetGoals, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
-  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+
+  // Set initial selection to the last index (the most recent month)
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(MONTH_OPTIONS.length - 1);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // Define dynamic currency
-  const currency = userProfile?.currency || "CAD";
+  const monthScrollRef = useRef<ScrollView>(null);
 
+  const currency = userProfile?.currency || "CAD";
   const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
   const txType = activeTopTab === "Expenses" ? "expense" : activeTopTab === "Income" ? "income" : null;
+
+  // Auto scroll to the most recent month on mount
+  useEffect(() => {
+    setTimeout(() => {
+      monthScrollRef.current?.scrollToEnd({ animated: false });
+    }, 100);
+  }, []);
 
   const filteredTxs = useMemo(() => {
     return transactions.filter((tx) => {
@@ -134,23 +143,30 @@ export default function StatsScreen() {
           })}
         </View>
 
-        <View style={styles.monthRow}>
-          {MONTH_OPTIONS.map((m, idx) => {
-            const isActive = idx === selectedMonthIdx;
-            return (
-              <TouchableOpacity
-                key={m.label}
-                style={[styles.monthChip, isActive && styles.monthChipActive]}
-                onPress={() => setSelectedMonthIdx(idx)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.monthChipText, isActive && styles.monthChipTextActive]}>
-                  {idx === 0 ? m.label : m.label.split(" ")[0]}
-                </Text>
-                {isActive && <Ionicons name="chevron-down" size={14} color={colors.textPrimary} />}
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.monthScrollWrapper}>
+          <ScrollView
+            ref={monthScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.monthScrollContent}
+          >
+            {MONTH_OPTIONS.map((m, idx) => {
+              const isActive = idx === selectedMonthIdx;
+              return (
+                <TouchableOpacity
+                  key={m.label}
+                  style={[styles.monthChip, isActive && styles.monthChipActive]}
+                  onPress={() => setSelectedMonthIdx(idx)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.monthChipText, isActive && styles.monthChipTextActive]}>
+                    {m.label.split(" ")[0]} {m.year}
+                  </Text>
+                  {isActive && <Ionicons name="chevron-down" size={12} color={colors.textPrimary} style={{ marginLeft: 2 }} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <View style={styles.summaryRow}>
@@ -280,8 +296,9 @@ function createStyles(colors: Colors) {
     topTabTextActive: { color: colors.accent, fontWeight: "700" },
     topTabUnderline: { width: "100%", height: 2, marginTop: 6, borderRadius: 999, backgroundColor: colors.accent },
 
-    monthRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
-    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip },
+    monthScrollWrapper: { marginBottom: 18 },
+    monthScrollContent: { paddingRight: 16, gap: 8 },
+    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip, minWidth: 90, justifyContent: 'center' },
     monthChipActive: { backgroundColor: colors.accent },
     monthChipText: { color: colors.tabBarInactive, fontSize: 12, fontWeight: "600" },
     monthChipTextActive: { color: colors.textPrimary },
