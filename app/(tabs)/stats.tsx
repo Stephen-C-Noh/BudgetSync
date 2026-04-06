@@ -103,6 +103,47 @@ export default function StatsScreen() {
 
   const maxWeekly = Math.max(...weeklyTotals, 1);
 
+  // ─── Overview-specific computations ──────────────────────────────────────
+
+  /**
+   * Single-pass computation of all Overview-specific values.
+   * Accumulates totalIncome, totalExpense, and per-week income/expense
+   * arrays in one loop over filteredTxs rather than three separate passes.
+   * Returns zeroed values when the Overview tab is not active.
+   */
+  const overviewData = useMemo(() => {
+    const weeklyIncome = [0, 0, 0, 0];
+    const weeklyExpense = [0, 0, 0, 0];
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    if (activeTopTab === "Overview") {
+      for (const tx of filteredTxs) {
+        const weekIdx = Math.min(Math.floor((new Date(tx.date).getDate() - 1) / 7), 3);
+        if (tx.type === "income") {
+          totalIncome += tx.amount;
+          weeklyIncome[weekIdx] += tx.amount;
+        } else {
+          totalExpense += tx.amount;
+          weeklyExpense[weekIdx] += tx.amount;
+        }
+      }
+    }
+
+    return { totalIncome, totalExpense, weeklyIncome, weeklyExpense };
+  }, [filteredTxs, activeTopTab]);
+
+  const { totalIncome, totalExpense, weeklyIncome, weeklyExpense } = overviewData;
+
+  /** Shared scale ceiling for the dual-bar chart. */
+  const maxDualBar = useMemo(
+    () => Math.max(...weeklyIncome, ...weeklyExpense, 1),
+    [weeklyIncome, weeklyExpense],
+  );
+
+  /** Net cashflow for the selected month: positive = surplus, negative = deficit. */
+  const netCashflow = totalIncome - totalExpense;
+
   // Donut chart — show top category share
   const chart = useMemo(() => {
     const radius = 72;
@@ -161,118 +202,216 @@ export default function StatsScreen() {
           })}
         </View>
 
-        {/* Summary cards */}
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>
-              {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
-            </Text>
-            <Text style={styles.summaryValue}>
-              ${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </Text>
-          </View>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Monthly Budget</Text>
-            {totalMonthlyBudget > 0 ? (
+        {activeTopTab === "Overview" ? (
+          // ─── Overview layout ────────────────────────────────────────────────
+          <>
+            {totalIncome === 0 && totalExpense === 0 ? (
+              /* Empty state — no transactions in the selected month */
+              <View style={styles.card}>
+                <Text style={styles.emptyText}>No data for this period.</Text>
+              </View>
+            ) : (
               <>
-                <Text style={styles.summaryValue}>
-                  ${totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </Text>
-                <View style={styles.progressTrack}>
-                  <View
+                {/* Net cashflow hero */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Net Cashflow</Text>
+                  <Text
                     style={[
-                      styles.progressFill,
-                      { width: `${Math.min((totalAmount / totalMonthlyBudget) * 100, 100)}%` as any },
+                      styles.netCashflowValue,
+                      { color: netCashflow >= 0 ? colors.income : colors.expense },
                     ]}
-                  />
+                  >
+                    {netCashflow >= 0 ? "+" : "-"}$
+                    {Math.abs(netCashflow).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                  <Text style={styles.netCashflowSubLabel}>
+                    {netCashflow >= 0 ? "Surplus" : "Deficit"} for {selectedMonth.label}
+                  </Text>
+                </View>
+
+                {/* Income vs Expense tiles */}
+                <View style={styles.summaryRow}>
+                  <View style={[styles.summaryCard, { borderColor: colors.incomeSubtle }]}>
+                    <View style={styles.tileLabelRow}>
+                      <View style={[styles.tileDot, { backgroundColor: colors.income }]} />
+                      <Text style={styles.summaryLabel}>Income</Text>
+                    </View>
+                    <Text style={[styles.summaryValue, { color: colors.income }]}>
+                      ${totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryCard, { borderColor: colors.expenseSubtle }]}>
+                    <View style={styles.tileLabelRow}>
+                      <View style={[styles.tileDot, { backgroundColor: colors.expense }]} />
+                      <Text style={styles.summaryLabel}>Expenses</Text>
+                    </View>
+                    <Text style={[styles.summaryValue, { color: colors.expense }]}>
+                      ${totalExpense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                  </View>
                 </View>
               </>
-            ) : (
-              <Text style={styles.noBudgetText}>No goals set</Text>
             )}
-          </View>
-        </View>
 
-        {/* Spending breakdown */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {activeTopTab === "Income" ? "Income Breakdown" : "Spending Breakdown"}
-          </Text>
-
-          {breakdown.length === 0 ? (
-            <Text style={styles.emptyText}>No data for this period.</Text>
-          ) : (
-            <>
-              <View style={styles.chartContainer}>
-                <View style={styles.chartWrapper}>
-                  <Svg width={chart.size} height={chart.size}>
-                    <Circle
-                      stroke={colors.statsProgressTrack}
-                      fill="none"
-                      cx={chart.size / 2}
-                      cy={chart.size / 2}
-                      r={chart.radius}
-                      strokeWidth={chart.strokeWidth}
-                    />
-                    <Circle
-                      stroke={chart.color}
-                      fill="none"
-                      cx={chart.size / 2}
-                      cy={chart.size / 2}
-                      r={chart.radius}
-                      strokeWidth={chart.strokeWidth}
-                      strokeDasharray={`${chart.circumference} ${chart.circumference}`}
-                      strokeDashoffset={chart.strokeDashoffset}
-                      strokeLinecap="round"
-                      rotation="-90"
-                      origin={`${chart.size / 2}, ${chart.size / 2}`}
-                    />
-                  </Svg>
-                  <View style={styles.chartCenter}>
-                    <Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
-                    <Text style={styles.chartCenterValue} numberOfLines={1} adjustsFontSizeToFit>
-                      {topCategory}
-                    </Text>
-                  </View>
+            {/* Dual-bar weekly chart: income (green) + expense (cyan) per week */}
+            <View style={styles.card}>
+              <View style={styles.weekHeader}>
+                <Text style={styles.cardTitle}>Weekly Cashflow</Text>
+                <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
+              </View>
+              <View style={styles.dualBarLegend}>
+                <View style={styles.legendLeft}>
+                  <View style={[styles.legendDot, { backgroundColor: colors.income }]} />
+                  <Text style={styles.legendText}>Income</Text>
+                </View>
+                <View style={[styles.legendLeft, { marginLeft: 16 }]}>
+                  <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
+                  <Text style={styles.legendText}>Expense</Text>
                 </View>
               </View>
-
-              <View style={styles.legendList}>
-                {breakdown.map((item) => (
-                  <View key={item.label} style={styles.legendRow}>
-                    <View style={styles.legendLeft}>
-                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                      <Text style={styles.legendText}>{item.label}</Text>
+              <View style={styles.weekChart}>
+                {[0, 1, 2, 3].map((i) => {
+                  const incH = Math.max(
+                    (weeklyIncome[i] / maxDualBar) * 90,
+                    weeklyIncome[i] > 0 ? 6 : 0,
+                  );
+                  const expH = Math.max(
+                    (weeklyExpense[i] / maxDualBar) * 90,
+                    weeklyExpense[i] > 0 ? 6 : 0,
+                  );
+                  return (
+                    <View key={i} style={styles.weekColumn}>
+                      <View style={styles.dualBarPair}>
+                        <View style={[styles.dualBar, { height: incH, backgroundColor: colors.income }]} />
+                        <View style={[styles.dualBar, { height: expH, backgroundColor: colors.accent }]} />
+                      </View>
+                      <Text style={styles.weekLabel}>W{i + 1}</Text>
                     </View>
-                    <Text style={styles.legendAmount}>
-                      ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
-            </>
-          )}
-        </View>
+            </View>
+          </>
+        ) : (
+          // ─── Expenses / Income layout ───────────────────────────────────────
+          <>
+            {/* Summary cards */}
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>
+                  {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
+                </Text>
+                <Text style={styles.summaryValue}>
+                  ${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+              </View>
 
-        {/* Weekly trends */}
-        <View style={styles.card}>
-          <View style={styles.weekHeader}>
-            <Text style={styles.cardTitle}>Weekly Trends</Text>
-            <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
-          </View>
-          <View style={styles.weekChart}>
-            {weeklyTotals.map((val, i) => {
-              const barHeight = maxWeekly > 0 ? Math.max((val / maxWeekly) * 90, val > 0 ? 6 : 0) : 0;
-              return (
-                <View key={i} style={styles.weekColumn}>
-                  <View style={[styles.bar, { height: barHeight }]} />
-                  <Text style={styles.weekLabel}>W{i + 1}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Monthly Budget</Text>
+                {totalMonthlyBudget > 0 ? (
+                  <>
+                    <Text style={styles.summaryValue}>
+                      ${totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${Math.min((totalAmount / totalMonthlyBudget) * 100, 100)}%` as any },
+                        ]}
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <Text style={styles.noBudgetText}>No goals set</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Spending / Income breakdown with donut chart */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>
+                {activeTopTab === "Income" ? "Income Breakdown" : "Spending Breakdown"}
+              </Text>
+
+              {breakdown.length === 0 ? (
+                <Text style={styles.emptyText}>No data for this period.</Text>
+              ) : (
+                <>
+                  <View style={styles.chartContainer}>
+                    <View style={styles.chartWrapper}>
+                      <Svg width={chart.size} height={chart.size}>
+                        <Circle
+                          stroke={colors.statsProgressTrack}
+                          fill="none"
+                          cx={chart.size / 2}
+                          cy={chart.size / 2}
+                          r={chart.radius}
+                          strokeWidth={chart.strokeWidth}
+                        />
+                        <Circle
+                          stroke={chart.color}
+                          fill="none"
+                          cx={chart.size / 2}
+                          cy={chart.size / 2}
+                          r={chart.radius}
+                          strokeWidth={chart.strokeWidth}
+                          strokeDasharray={`${chart.circumference} ${chart.circumference}`}
+                          strokeDashoffset={chart.strokeDashoffset}
+                          strokeLinecap="round"
+                          rotation="-90"
+                          origin={`${chart.size / 2}, ${chart.size / 2}`}
+                        />
+                      </Svg>
+                      <View style={styles.chartCenter}>
+                        <Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
+                        <Text style={styles.chartCenterValue} numberOfLines={1} adjustsFontSizeToFit>
+                          {topCategory}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.legendList}>
+                    {breakdown.map((item) => (
+                      <View key={item.label} style={styles.legendRow}>
+                        <View style={styles.legendLeft}>
+                          <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                          <Text style={styles.legendText}>{item.label}</Text>
+                        </View>
+                        <Text style={styles.legendAmount}>
+                          ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* Weekly trends */}
+            <View style={styles.card}>
+              <View style={styles.weekHeader}>
+                <Text style={styles.cardTitle}>Weekly Trends</Text>
+                <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
+              </View>
+              <View style={styles.weekChart}>
+                {weeklyTotals.map((val, i) => {
+                  const barHeight = maxWeekly > 0 ? Math.max((val / maxWeekly) * 90, val > 0 ? 6 : 0) : 0;
+                  return (
+                    <View key={i} style={styles.weekColumn}>
+                      <View style={[styles.bar, { height: barHeight }]} />
+                      <Text style={styles.weekLabel}>W{i + 1}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -322,6 +461,44 @@ function createStyles(colors: Colors) {
     legendText: { color: colors.tabBarInactive, fontSize: 14 },
     legendAmount: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
 
+    // ─── Overview styles ──────────────────────────────────────────────────────
+    netCashflowValue: {
+      fontSize: 38,
+      fontWeight: "800",
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    netCashflowSubLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginTop: 2,
+    },
+    tileLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    tileDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 999,
+      marginRight: 6,
+    },
+    dualBarLegend: {
+      flexDirection: "row",
+      marginBottom: 10,
+    },
+    dualBarPair: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 3,
+      marginBottom: 8,
+    },
+    dualBar: {
+      width: 14,
+      borderRadius: 6,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
     weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     weekSubtext: { color: colors.textSecondary, fontSize: 12 },
     weekChart: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, marginTop: 10, paddingHorizontal: 8 },
