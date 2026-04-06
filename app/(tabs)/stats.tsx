@@ -270,7 +270,7 @@ export default function StatsScreen() {
                     </View>
                     <View style={[styles.legendLeft, { marginLeft: 16 }]}>
                       <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
-                      <Text style={styles.legendText}>Expense</Text>
+                      <Text style={styles.legendText}>Expenses</Text>
                     </View>
                   </View>
                   <View style={styles.weekChart}>
