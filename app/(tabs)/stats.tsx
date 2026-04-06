@@ -48,8 +48,9 @@ export default function StatsScreen() {
 
   const filteredTxs = useMemo(() => {
     return transactions.filter((tx) => {
-      const d = new Date(tx.date);
-      const matchMonth = d.getFullYear() === selectedMonth.year && d.getMonth() === selectedMonth.month;
+      // Parse YYYY-MM-DD directly to avoid UTC-to-local day shift in new Date()
+      const [y, m] = tx.date.split("-").map(Number);
+      const matchMonth = y === selectedMonth.year && m - 1 === selectedMonth.month;
       const matchType = txType ? tx.type === txType : true;
       return matchMonth && matchType;
     });
@@ -94,7 +95,8 @@ export default function StatsScreen() {
   const weeklyTotals = useMemo(() => {
     const weeks = [0, 0, 0, 0];
     for (const tx of filteredTxs) {
-      const day = new Date(tx.date).getDate();
+      // Read day directly from the YYYY-MM-DD string to avoid UTC shift
+      const day = Number(tx.date.substring(8, 10));
       const weekIdx = Math.min(Math.floor((day - 1) / 7), 3);
       weeks[weekIdx] += tx.amount;
     }
@@ -119,7 +121,9 @@ export default function StatsScreen() {
 
     if (activeTopTab === "Overview") {
       for (const tx of filteredTxs) {
-        const weekIdx = Math.min(Math.floor((new Date(tx.date).getDate() - 1) / 7), 3);
+        // Read day directly from the YYYY-MM-DD string to avoid UTC shift
+        const day = Number(tx.date.substring(8, 10));
+        const weekIdx = Math.min(Math.floor((day - 1) / 7), 3);
         if (tx.type === "income") {
           totalIncome += tx.amount;
           weeklyIncome[weekIdx] += tx.amount;
@@ -253,47 +257,46 @@ export default function StatsScreen() {
                     </Text>
                   </View>
                 </View>
+                {/* Dual-bar weekly chart: income (green) + expense (cyan) per week */}
+                <View style={styles.card}>
+                  <View style={styles.weekHeader}>
+                    <Text style={styles.cardTitle}>Weekly Cashflow</Text>
+                    <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
+                  </View>
+                  <View style={styles.dualBarLegend}>
+                    <View style={styles.legendLeft}>
+                      <View style={[styles.legendDot, { backgroundColor: colors.income }]} />
+                      <Text style={styles.legendText}>Income</Text>
+                    </View>
+                    <View style={[styles.legendLeft, { marginLeft: 16 }]}>
+                      <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
+                      <Text style={styles.legendText}>Expense</Text>
+                    </View>
+                  </View>
+                  <View style={styles.weekChart}>
+                    {[0, 1, 2, 3].map((i) => {
+                      const incH = Math.max(
+                        (weeklyIncome[i] / maxDualBar) * 90,
+                        weeklyIncome[i] > 0 ? 6 : 0,
+                      );
+                      const expH = Math.max(
+                        (weeklyExpense[i] / maxDualBar) * 90,
+                        weeklyExpense[i] > 0 ? 6 : 0,
+                      );
+                      return (
+                        <View key={i} style={styles.weekColumn}>
+                          <View style={styles.dualBarPair}>
+                            <View style={[styles.dualBar, { height: incH, backgroundColor: colors.income }]} />
+                            <View style={[styles.dualBar, { height: expH, backgroundColor: colors.accent }]} />
+                          </View>
+                          <Text style={styles.weekLabel}>W{i + 1}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
               </>
             )}
-
-            {/* Dual-bar weekly chart: income (green) + expense (cyan) per week */}
-            <View style={styles.card}>
-              <View style={styles.weekHeader}>
-                <Text style={styles.cardTitle}>Weekly Cashflow</Text>
-                <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
-              </View>
-              <View style={styles.dualBarLegend}>
-                <View style={styles.legendLeft}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.income }]} />
-                  <Text style={styles.legendText}>Income</Text>
-                </View>
-                <View style={[styles.legendLeft, { marginLeft: 16 }]}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
-                  <Text style={styles.legendText}>Expense</Text>
-                </View>
-              </View>
-              <View style={styles.weekChart}>
-                {[0, 1, 2, 3].map((i) => {
-                  const incH = Math.max(
-                    (weeklyIncome[i] / maxDualBar) * 90,
-                    weeklyIncome[i] > 0 ? 6 : 0,
-                  );
-                  const expH = Math.max(
-                    (weeklyExpense[i] / maxDualBar) * 90,
-                    weeklyExpense[i] > 0 ? 6 : 0,
-                  );
-                  return (
-                    <View key={i} style={styles.weekColumn}>
-                      <View style={styles.dualBarPair}>
-                        <View style={[styles.dualBar, { height: incH, backgroundColor: colors.income }]} />
-                        <View style={[styles.dualBar, { height: expH, backgroundColor: colors.accent }]} />
-                      </View>
-                      <Text style={styles.weekLabel}>W{i + 1}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
           </>
         ) : (
           // ─── Expenses / Income layout ───────────────────────────────────────
