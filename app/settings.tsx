@@ -1,5 +1,5 @@
 import EditNameModal from "@/components/shared/EditNameModal";
-import { useAppState } from "@/context/AppContext";
+import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
