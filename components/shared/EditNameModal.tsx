@@ -1,5 +1,5 @@
 import { Colors, useTheme } from "@/context/ThemeContext";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,10 @@ export default function EditNameModal({ visible, currentName, onSave, onClose }:
 
   const [newName, setNewName] = useState(currentName);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible) setNewName(currentName);
+  }, [visible]);
 
   async function handleSave() {
     const trimmed = newName.trim();
