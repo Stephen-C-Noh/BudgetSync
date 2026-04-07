@@ -1,20 +1,17 @@
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { clearPIN } from "@/lib/auth";
+import EditNameModal from "@/components/shared/EditNameModal";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -32,10 +29,7 @@ export default function MoreScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [newName, setNewName] = useState(userProfile?.name || "");
-  const [isSaving, setIsSaving] = useState(false);
 
   const isBiometricsEnabled =
     settings.find((s) => s.key === "biometrics_enabled")?.value === "true";
@@ -49,51 +43,21 @@ export default function MoreScreen() {
     }
   }
 
-  async function handleSaveName() {
-    const trimmed = newName.trim();
-    if (!trimmed) {
-      Alert.alert("Error", "Name cannot be empty");
-      return;
+  async function handleSaveName(name: string) {
+    if (!userProfile) {
+      throw new Error("Profile unavailable");
     }
-    setIsSaving(true);
-    try {
-      if (userProfile) {
-        await updateUserProfile({ ...userProfile, name: trimmed });
-      }
-      setIsEditModalVisible(false);
-    } catch (error) {
-      Alert.alert("Error", "Failed to update name");
-    } finally {
-      setIsSaving(false);
-    }
+    await updateUserProfile({ ...userProfile, name });
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* ADDED MODAL - Standard logic to match Settings */}
-      <Modal visible={isEditModalVisible} transparent animationType="fade" onRequestClose={() => setIsEditModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Full Name</Text>
-            <TextInput
-              style={styles.textInput}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="Enter full name"
-              placeholderTextColor={colors.textSecondary}
-              autoFocus
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={() => setIsEditModalVisible(false)} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
-                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleSaveName} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
-                {isSaving ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Save</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <EditNameModal
+        visible={isEditModalVisible}
+        currentName={userProfile?.name || ""}
+        onSave={handleSaveName}
+        onClose={() => setIsEditModalVisible(false)}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollPadding}>
         <Text style={styles.mainTitle}>More</Text>
@@ -104,7 +68,6 @@ export default function MoreScreen() {
               <View style={styles.avatarCircleLarge}>
                 <MaterialCommunityIcons name="account" size={48} color={colors.accent} />
               </View>
-              {/* WIRED PENCIL */}
               <TouchableOpacity
                 style={styles.editBadgeLarge}
                 onPress={() => {
@@ -223,12 +186,5 @@ function createStyles(colors: Colors) {
     syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.syncConnected },
     iconBoxDisabled: { backgroundColor: colors.surfaceDisabled },
     itemTitleDisabled: { color: colors.textDisabled },
-
-    modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center", alignItems: "center", padding: 20 },
-    modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
-    modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
-    textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 24 },
-    modalButtons: { flexDirection: "row", gap: 12 },
-    modalBtn: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center" },
   });
 }
