@@ -1,3 +1,4 @@
+import EditNameModal from "@/components/shared/EditNameModal";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
@@ -29,18 +30,38 @@ interface MenuRowProps {
 }
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 type ExportMode = "month" | "range";
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { userProfile, isLoading, settings, accounts, categories, transactions } = useAppState();
-  const { updateSetting } = useAppActions();
+  const {
+    userProfile,
+    isLoading,
+    settings,
+    accounts,
+    categories,
+    transactions,
+  } = useAppState();
+  const { updateSetting, updateUserProfile } = useAppActions();
+
   const { colors, colorScheme, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
   const budgetAlerts =
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
@@ -125,12 +146,14 @@ export default function SettingsScreen() {
    * Returns null when there are no transactions in the selected period.
    */
   function buildCsvExport(): string | null {
-    const startPrefix = exportMode === "month"
-      ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
-      : `${exportFromYear}-${String(exportFromMonth).padStart(2, "0")}`;
-    const endPrefix = exportMode === "month"
-      ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
-      : `${exportToYear}-${String(exportToMonth).padStart(2, "0")}`;
+    const startPrefix =
+      exportMode === "month"
+        ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
+        : `${exportFromYear}-${String(exportFromMonth).padStart(2, "0")}`;
+    const endPrefix =
+      exportMode === "month"
+        ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
+        : `${exportToYear}-${String(exportToMonth).padStart(2, "0")}`;
     const filtered = transactions.filter((t) => {
       const monthPrefix = t.date.substring(0, 7);
       return monthPrefix >= startPrefix && monthPrefix <= endPrefix;
@@ -165,18 +188,20 @@ export default function SettingsScreen() {
   async function handleExport() {
     const csv = buildCsvExport();
     if (!csv) {
-      const label = exportMode === "month"
-        ? `${MONTH_NAMES[exportMonth - 1]} ${exportYear}`
-        : `${MONTH_NAMES[exportFromMonth - 1]} ${exportFromYear} to ${MONTH_NAMES[exportToMonth - 1]} ${exportToYear}`;
+      const label =
+        exportMode === "month"
+          ? `${MONTH_NAMES[exportMonth - 1]} ${exportYear}`
+          : `${MONTH_NAMES[exportFromMonth - 1]} ${exportFromYear} to ${MONTH_NAMES[exportToMonth - 1]} ${exportToYear}`;
       Alert.alert("No Data", `No transactions found for ${label}.`);
       return;
     }
 
     setIsExporting(true);
     try {
-      const fileName = exportMode === "month"
-        ? `budgetsync_${exportYear}_${String(exportMonth).padStart(2, "0")}.csv`
-        : `budgetsync_${exportFromYear}${String(exportFromMonth).padStart(2, "0")}_${exportToYear}${String(exportToMonth).padStart(2, "0")}.csv`;
+      const fileName =
+        exportMode === "month"
+          ? `budgetsync_${exportYear}_${String(exportMonth).padStart(2, "0")}.csv`
+          : `budgetsync_${exportFromYear}${String(exportFromMonth).padStart(2, "0")}_${exportToYear}${String(exportToMonth).padStart(2, "0")}.csv`;
       const file = new File(Paths.cache, fileName);
       file.create({ overwrite: true });
       file.write(csv);
@@ -229,8 +254,22 @@ export default function SettingsScreen() {
     await setThemeMode(mode);
   }
 
+  async function handleSaveName(name: string) {
+    if (!userProfile) {
+      throw new Error("Profile unavailable");
+    }
+    await updateUserProfile({ ...userProfile, name });
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      <EditNameModal
+        visible={isEditModalVisible}
+        currentName={userProfile?.name || ""}
+        onSave={handleSaveName}
+        onClose={() => setIsEditModalVisible(false)}
+      />
+
       <View style={styles.headerRow}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -257,7 +296,11 @@ export default function SettingsScreen() {
                   color={colors.accent}
                 />
               </View>
-              <TouchableOpacity style={styles.editBadge}>
+              <TouchableOpacity
+                style={styles.editBadge}
+                disabled={!userProfile}
+                onPress={() => setIsEditModalVisible(true)}
+              >
                 <MaterialCommunityIcons
                   name="pencil"
                   size={12}
@@ -312,33 +355,29 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.itemDivider} />
           <View style={styles.themeModeRow}>
-            {(["system", "light", "dark"] as ThemeMode[]).map((mode) => {
-              const isActive = themeMode === mode;
-              return (
-                <TouchableOpacity
-                  key={mode}
+            {(["system", "light", "dark"] as ThemeMode[]).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={[
+                  styles.themeModeButton,
+                  themeMode === mode && styles.themeModeButtonActive,
+                ]}
+                onPress={() => handleThemeModeChange(mode)}
+              >
+                <Text
                   style={[
-                    styles.themeModeButton,
-                    isActive && styles.themeModeButtonActive,
+                    styles.themeModeButtonText,
+                    themeMode === mode && styles.themeModeButtonTextActive,
                   ]}
-                  onPress={() => handleThemeModeChange(mode)}
-                  activeOpacity={0.8}
                 >
-                  <Text
-                    style={[
-                      styles.themeModeButtonText,
-                      isActive && styles.themeModeButtonTextActive,
-                    ]}
-                  >
-                    {mode === "system"
-                      ? "System"
-                      : mode === "light"
-                        ? "Light"
-                        : "Dark"}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  {mode === "system"
+                    ? "System"
+                    : mode === "light"
+                      ? "Light"
+                      : "Dark"}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -431,7 +470,6 @@ export default function SettingsScreen() {
             Delete Account
           </Text>
         </TouchableOpacity>
-
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -457,11 +495,19 @@ export default function SettingsScreen() {
               {(["month", "range"] as ExportMode[]).map((tab) => (
                 <TouchableOpacity
                   key={tab}
-                  style={[styles.pickerTabBtn, pickerTab === tab && styles.pickerTabActive]}
+                  style={[
+                    styles.pickerTabBtn,
+                    pickerTab === tab && styles.pickerTabActive,
+                  ]}
                   onPress={() => setPickerTab(tab)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.pickerTabText, pickerTab === tab && styles.pickerTabTextActive]}>
+                  <Text
+                    style={[
+                      styles.pickerTabText,
+                      pickerTab === tab && styles.pickerTabTextActive,
+                    ]}
+                  >
                     {tab === "month" ? "Month" : "Range"}
                   </Text>
                 </TouchableOpacity>
@@ -477,14 +523,22 @@ export default function SettingsScreen() {
                       style={styles.yearArrow}
                       onPress={() => setPickerYear((y) => y - 1)}
                     >
-                      <Ionicons name="chevron-back" size={20} color={colors.accent} />
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={colors.accent}
+                      />
                     </TouchableOpacity>
                     <Text style={styles.yearLabel}>{pickerYear}</Text>
                     <TouchableOpacity
                       style={styles.yearArrow}
                       onPress={() => setPickerYear((y) => y + 1)}
                     >
-                      <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.accent}
+                      />
                     </TouchableOpacity>
                   </View>
 
@@ -499,7 +553,10 @@ export default function SettingsScreen() {
                       return (
                         <TouchableOpacity
                           key={name}
-                          style={[styles.monthCell, isSelected && styles.monthCellActive]}
+                          style={[
+                            styles.monthCell,
+                            isSelected && styles.monthCellActive,
+                          ]}
                           onPress={() => {
                             setExportMode("month");
                             setExportYear(pickerYear);
@@ -508,7 +565,12 @@ export default function SettingsScreen() {
                           }}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.monthCellText, isSelected && styles.monthCellTextActive]}>
+                          <Text
+                            style={[
+                              styles.monthCellText,
+                              isSelected && styles.monthCellTextActive,
+                            ]}
+                          >
                             {name.slice(0, 3)}
                           </Text>
                         </TouchableOpacity>
@@ -525,14 +587,22 @@ export default function SettingsScreen() {
                       style={styles.yearArrow}
                       onPress={() => setDraftFromYear((y) => y - 1)}
                     >
-                      <Ionicons name="chevron-back" size={20} color={colors.accent} />
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={colors.accent}
+                      />
                     </TouchableOpacity>
                     <Text style={styles.yearLabel}>{draftFromYear}</Text>
                     <TouchableOpacity
                       style={styles.yearArrow}
                       onPress={() => setDraftFromYear((y) => y + 1)}
                     >
-                      <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.accent}
+                      />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.monthGrid}>
@@ -542,11 +612,19 @@ export default function SettingsScreen() {
                       return (
                         <TouchableOpacity
                           key={name}
-                          style={[styles.monthCell, isSelected && styles.monthCellActive]}
+                          style={[
+                            styles.monthCell,
+                            isSelected && styles.monthCellActive,
+                          ]}
                           onPress={() => setDraftFromMonth(month)}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.monthCellText, isSelected && styles.monthCellTextActive]}>
+                          <Text
+                            style={[
+                              styles.monthCellText,
+                              isSelected && styles.monthCellTextActive,
+                            ]}
+                          >
                             {name.slice(0, 3)}
                           </Text>
                         </TouchableOpacity>
@@ -561,14 +639,22 @@ export default function SettingsScreen() {
                       style={styles.yearArrow}
                       onPress={() => setDraftToYear((y) => y - 1)}
                     >
-                      <Ionicons name="chevron-back" size={20} color={colors.accent} />
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={colors.accent}
+                      />
                     </TouchableOpacity>
                     <Text style={styles.yearLabel}>{draftToYear}</Text>
                     <TouchableOpacity
                       style={styles.yearArrow}
                       onPress={() => setDraftToYear((y) => y + 1)}
                     >
-                      <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.accent}
+                      />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.monthGrid}>
@@ -578,11 +664,19 @@ export default function SettingsScreen() {
                       return (
                         <TouchableOpacity
                           key={name}
-                          style={[styles.monthCell, isSelected && styles.monthCellActive]}
+                          style={[
+                            styles.monthCell,
+                            isSelected && styles.monthCellActive,
+                          ]}
                           onPress={() => setDraftToMonth(month)}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.monthCellText, isSelected && styles.monthCellTextActive]}>
+                          <Text
+                            style={[
+                              styles.monthCellText,
+                              isSelected && styles.monthCellTextActive,
+                            ]}
+                          >
                             {name.slice(0, 3)}
                           </Text>
                         </TouchableOpacity>
@@ -721,11 +815,7 @@ function createStyles(colors: Colors) {
       justifyContent: "space-between",
       padding: 16,
     },
-    themeModeRow: {
-      flexDirection: "row",
-      gap: 10,
-      padding: 16,
-    },
+    themeModeRow: { flexDirection: "row", gap: 10, padding: 16 },
     themeModeButton: {
       flex: 1,
       borderRadius: 12,
@@ -804,7 +894,11 @@ function createStyles(colors: Colors) {
       alignItems: "center",
     },
     pickerTabActive: { backgroundColor: colors.accent },
-    pickerTabText: { color: colors.textSecondary, fontWeight: "600", fontSize: 14 },
+    pickerTabText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
     pickerTabTextActive: { color: colors.onAccent, fontWeight: "700" },
     yearRow: {
       flexDirection: "row",
