@@ -5,8 +5,6 @@ import { BudgetGoal, Category, Transaction } from "./types";
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
-      // `shouldShowAlert` is deprecated in newer SDKs, but we keep it for backward compatibility with older SDK versions.
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: false,
