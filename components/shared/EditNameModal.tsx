@@ -27,7 +27,7 @@ export default function EditNameModal({ visible, currentName, onSave, onClose }:
 
   useEffect(() => {
     if (visible) setNewName(currentName);
-  }, [visible]);
+  }, [visible, currentName]);
 
   async function handleSave() {
     const trimmed = newName.trim();
@@ -39,8 +39,14 @@ export default function EditNameModal({ visible, currentName, onSave, onClose }:
     try {
       await onSave(trimmed);
       onClose();
-    } catch {
-      Alert.alert("Error", "Failed to update name");
+    } catch (e) {
+      const message =
+        e instanceof Error && e.message.trim()
+          ? e.message
+          : typeof e === "string" && e.trim()
+            ? e
+            : "Failed to update name";
+      Alert.alert("Error", message);
     } finally {
       setIsSaving(false);
     }

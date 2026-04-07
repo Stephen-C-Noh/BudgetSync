@@ -78,6 +78,7 @@ export default function MoreScreen() {
               <TouchableOpacity
                 style={styles.editBadgeLarge}
                 onPress={() => setIsEditModalVisible(true)}
+                disabled={!userProfile}
               >
                 <MaterialCommunityIcons
                   name="pencil"
