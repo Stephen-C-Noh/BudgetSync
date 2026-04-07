@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -58,7 +60,10 @@ export default function EditNameModal({ visible, currentName, onSave, onClose }:
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Edit Full Name</Text>
           <TextInput
@@ -68,6 +73,7 @@ export default function EditNameModal({ visible, currentName, onSave, onClose }:
             placeholder="Enter full name"
             placeholderTextColor={colors.textSecondary}
             maxLength={50}
+            autoCapitalize="words"
             autoFocus
           />
           <View style={styles.modalButtons}>
@@ -89,7 +95,7 @@ export default function EditNameModal({ visible, currentName, onSave, onClose }:
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

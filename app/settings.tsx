@@ -298,6 +298,7 @@ export default function SettingsScreen() {
               </View>
               <TouchableOpacity
                 style={styles.editBadge}
+                disabled={!userProfile}
                 onPress={() => setIsEditModalVisible(true)}
               >
                 <MaterialCommunityIcons
