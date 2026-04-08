@@ -1,7 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
+import AccountsMonthlyView from "@/components/accounts/MonthlyView";
+import AccountsSummaryView from "@/components/accounts/SummaryView";
+import CalendarView from "@/components/shared/CalendarView";
+import DailyView from "@/components/shared/DailyView";
 import { useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,10 +15,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import CalendarView from "@/components/shared/CalendarView";
-import DailyView from "@/components/shared/DailyView";
-import AccountsMonthlyView from "@/components/accounts/MonthlyView";
-import AccountsSummaryView from "@/components/accounts/SummaryView";
 
 const TABS = ["Daily", "Calendar", "Monthly", "Summary"];
 
