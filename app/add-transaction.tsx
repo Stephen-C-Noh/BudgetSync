@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -31,6 +31,18 @@ export default function AddTransactionScreen() {
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("0.00");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+
+  useEffect(() => {
+    if (accounts.length === 0) {
+      setSelectedAccountId("");
+      return;
+    }
+    const exists = accounts.some((a) => a.id === selectedAccountId);
+    if (!exists) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -46,7 +58,6 @@ export default function AddTransactionScreen() {
   }, [selectedDate]);
 
   const filteredCategories = categories.filter((c) => c.type === type);
-  const primaryAccount = accounts[0] ?? null;
 
   function handleTypeChange(newType: "expense" | "income") {
     setType(newType);
@@ -58,7 +69,6 @@ export default function AddTransactionScreen() {
       setShowPicker(false);
       if (date) setSelectedDate(formatDate(date));
     } else {
-      // iOS: Update local state while scrolling
       if (date) setSelectedDate(formatDate(date));
     }
   }
@@ -73,15 +83,19 @@ export default function AddTransactionScreen() {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
-    if (!primaryAccount) {
+    if (accounts.length === 0) {
       Alert.alert("No Account", "No account found. Please add an account first.");
+      return;
+    }
+    if (!selectedAccountId) {
+      Alert.alert("No Account", "Please select an account first.");
       return;
     }
 
     setIsSaving(true);
     await addTransaction({
       id: Crypto.randomUUID(),
-      account_id: primaryAccount.id,
+      account_id: selectedAccountId,
       category_id: selectedCategoryId,
       type,
       amount: parsed,
@@ -105,7 +119,7 @@ export default function AddTransactionScreen() {
           <View style={{ width: 22 }} />
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
           <View style={styles.toggle}>
             <TouchableOpacity
               style={[styles.toggleBtn, type === "expense" && styles.toggleActive]}
@@ -155,7 +169,6 @@ export default function AddTransactionScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} style={styles.fieldChevron} />
           </TouchableOpacity>
 
-          {/* ANDROID PICKER */}
           {showPicker && Platform.OS === "android" && (
             <DateTimePicker
               value={pickerDate}
@@ -165,7 +178,6 @@ export default function AddTransactionScreen() {
             />
           )}
 
-          {/* FIX: iOS PICKER (Wrapped in Modal for visibility) */}
           {showPicker && Platform.OS === "ios" && (
             <Modal transparent animationType="fade" visible={showPicker} onRequestClose={() => setShowPicker(false)}>
               <View style={styles.modalOverlay}>
@@ -189,12 +201,35 @@ export default function AddTransactionScreen() {
           )}
 
           <Text style={styles.fieldLabel}>{type === "expense" ? "PAYMENT METHOD" : "ACCOUNT"}</Text>
-          <View style={styles.fieldRow}>
-            <Ionicons name="wallet-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-            <Text style={styles.fieldValue}>
-              {primaryAccount ? `${primaryAccount.name}${primaryAccount.last4 ? `  •••• ${primaryAccount.last4}` : ""}` : "No account"}
-            </Text>
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, marginBottom: 24, paddingBottom: 4 }}
+          >
+            {accounts.map((acc) => {
+              const isSelected = selectedAccountId === acc.id;
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  onPress={() => setSelectedAccountId(acc.id)}
+                  style={[
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive
+                  ]}
+                >
+                  <Ionicons
+                    name="wallet-outline"
+                    size={16}
+                    color={isSelected ? colors.accent : colors.textSecondary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.categoryText, isSelected && styles.categoryTextActive]}>
+                    {acc.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
           <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
           <TextInput style={styles.noteInput} placeholder="Add a note..." placeholderTextColor={colors.textSecondary} value={note} onChangeText={setNote} multiline />
@@ -234,7 +269,7 @@ function createStyles(colors: Colors) {
     categoryPillActive: { borderColor: colors.accent, backgroundColor: colors.accentBg },
     categoryIcon: { fontSize: 16, marginRight: 6 },
     categoryText: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
-    categoryTextActive: { color: colors.accent },
+    categoryTextActive: { color: colors.accent, fontWeight: "700" },
     fieldRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginBottom: 24 },
     fieldValue: { color: colors.textPrimary, fontSize: 15, flex: 1 },
     fieldChevron: { marginLeft: "auto" },

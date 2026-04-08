@@ -12,7 +12,7 @@ type Props = {
   accounts: Account[];
   transactions: Transaction[];
   categories: Category[];
-  currency?: string; // ADDED: Currency prop
+  currency?: string;
 };
 
 export default function HomeMonthlyView({ accounts, transactions, categories, currency = "CAD" }: Props) {

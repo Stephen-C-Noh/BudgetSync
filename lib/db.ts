@@ -322,7 +322,7 @@ export async function updateTransaction(
     );
     // Update the transaction record
     await database.runAsync(
-      "UPDATE transactions SET account_id=?, category_id=?, type=?, amount=?, note=?, date=? WHERE id=?",
+      "UPDATE transactions SET account_id=?, category_id=?, type=?, amount=?, note=?, date=?, synced=? WHERE id=?",
       [
         transaction.account_id,
         transaction.category_id,
@@ -330,6 +330,7 @@ export async function updateTransaction(
         transaction.amount,
         transaction.note ?? null,
         transaction.date,
+        transaction.synced,
         transaction.id,
       ],
     );
