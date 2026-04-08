@@ -149,7 +149,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.toggle}>
                 <TouchableOpacity
                   style={[styles.toggleBtn, editType === "expense" && styles.toggleActive]}

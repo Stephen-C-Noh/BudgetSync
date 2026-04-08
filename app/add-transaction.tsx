@@ -34,7 +34,12 @@ export default function AddTransactionScreen() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
 
   useEffect(() => {
-    if (accounts.length > 0 && !selectedAccountId) {
+    if (accounts.length === 0) {
+      setSelectedAccountId("");
+      return;
+    }
+    const exists = accounts.some((a) => a.id === selectedAccountId);
+    if (!exists) {
       setSelectedAccountId(accounts[0].id);
     }
   }, [accounts, selectedAccountId]);
