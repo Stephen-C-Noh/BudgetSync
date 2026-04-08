@@ -24,8 +24,7 @@ type Props = {
 };
 
 export default function TxRow({ tx, category, dateLabel }: Props) {
-  // Pulling userProfile to get the live currency
-  const { categories, userProfile } = useAppState();
+  const { categories, accounts, userProfile } = useAppState();
   const { updateTransaction, deleteTransaction } = useAppActions();
   const { colors } = useTheme();
 
@@ -35,6 +34,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
   const [editType, setEditType] = useState<"expense" | "income">(tx.type);
   const [editAmount, setEditAmount] = useState(tx.amount.toFixed(2));
   const [editCategoryId, setEditCategoryId] = useState(tx.category_id);
+  const [editAccountId, setEditAccountId] = useState(tx.account_id);
   const [editNote, setEditNote] = useState(tx.note ?? "");
   const [editDate] = useState(tx.date);
   const [isSaving, setIsSaving] = useState(false);
@@ -47,6 +47,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
     setEditType(tx.type);
     setEditAmount(tx.amount.toFixed(2));
     setEditCategoryId(tx.category_id);
+    setEditAccountId(tx.account_id);
     setEditNote(tx.note ?? "");
     setEditVisible(true);
   }
@@ -81,12 +82,18 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
+    if (!editAccountId) {
+      Alert.alert("No Account", "Please select an account.");
+      return;
+    }
+
     setIsSaving(true);
     await updateTransaction({
       ...tx,
       type: editType,
       amount: parsed,
       category_id: editCategoryId,
+      account_id: editAccountId,
       note: editNote.trim() || undefined,
       date: editDate,
     });
@@ -142,7 +149,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Type toggle */}
               <View style={styles.toggle}>
                 <TouchableOpacity
                   style={[styles.toggleBtn, editType === "expense" && styles.toggleActive]}
@@ -162,7 +168,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 </TouchableOpacity>
               </View>
 
-              {/* Amount */}
               <View style={styles.amountRow}>
                 <Text style={styles.amountPrefix}>{currency}</Text>
                 <TextInput
@@ -174,7 +179,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 />
               </View>
 
-              {/* Category */}
               <Text style={styles.fieldLabel}>CATEGORY</Text>
               <View style={styles.categoryWrap}>
                 {filteredCategories.map((cat) => (
@@ -191,14 +195,43 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 ))}
               </View>
 
-              {/* Date */}
+              <Text style={styles.fieldLabel}>ACCOUNT</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, marginBottom: 24, paddingBottom: 4 }}
+              >
+                {accounts.map((acc) => {
+                  const isSelected = editAccountId === acc.id;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      onPress={() => setEditAccountId(acc.id)}
+                      style={[
+                        styles.categoryPill,
+                        isSelected && styles.categoryPillActive
+                      ]}
+                    >
+                      <Ionicons
+                        name="wallet-outline"
+                        size={16}
+                        color={isSelected ? colors.accent : colors.textSecondary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.categoryText, isSelected && styles.categoryTextActive]}>
+                        {acc.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
               <Text style={styles.fieldLabel}>DATE</Text>
               <View style={styles.fieldRow}>
                 <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} style={styles.calendarIcon} />
                 <Text style={styles.fieldValue}>{editDate}</Text>
               </View>
 
-              {/* Note */}
               <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
               <TextInput
                 style={styles.noteInput}
@@ -209,7 +242,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 multiline
               />
 
-              {/* Save */}
               <TouchableOpacity
                 style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
                 onPress={handleSave}
