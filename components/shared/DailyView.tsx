@@ -69,8 +69,6 @@ export default function DailyView({ transactions, categories }: Props) {
         </View>
       </View>
 
-      {/* FIXED: Only show this top button if there ARE transactions. 
-          If the list is empty, the EmptyState button will handle it. */}
       {dayTxs.length > 0 && (
         <TouchableOpacity
           style={styles.addButton}

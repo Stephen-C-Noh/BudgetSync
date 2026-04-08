@@ -1,4 +1,4 @@
-import EmptyState from "@/components/shared/EmptyState"; // IMPORTED
+import EmptyState from "@/components/shared/EmptyState";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { Category } from "@/lib/types";
@@ -153,7 +153,7 @@ export default function CategorySettingsScreen() {
             <EmptyState
               icon="shape-outline"
               title="No Categories"
-              description={`You don't have any custom ${activeTab} categories yet.`}
+              description={`You don't have any ${activeTab} categories yet.`}
               buttonLabel="Add Category"
               onPress={openAddModal}
             />
