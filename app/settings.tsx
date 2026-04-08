@@ -1,41 +1,241 @@
+import EditNameModal from "@/components/shared/EditNameModal";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
+import { updateSupabasePassword } from "@/lib/supabase";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { File, Paths } from "expo-file-system";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import * as Sharing from "expo-sharing";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "KRW", "CAD", "AUD", "SGD", "HKD", "CNY"];
+const LANGUAGES = ["EN-US", "KO-KR", "JA-JP", "ZH-CN", "FR-FR", "ES-ES", "DE-DE"];
+
 interface MenuRowProps {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subTitle?: string;
+  onPress?: () => void;
   colors: Colors;
   styles: ReturnType<typeof createStyles>;
 }
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+type ExportMode = "month" | "range";
+
 export default function SettingsScreen() {
   const router = useRouter();
-  const { userProfile, isLoading, settings } = useAppState();
-  const { updateSetting } = useAppActions();
+  const {
+    userProfile,
+    syncUser,
+    isLoading,
+    settings,
+    accounts,
+    categories,
+    transactions,
+  } = useAppState();
+  const { updateSetting, updateUserProfile } = useAppActions();
+
   const { colors, colorScheme, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isPassModalVisible, setIsPassModalVisible] = useState(false);
+  const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [isLangModalVisible, setIsLangModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const budgetAlerts =
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
   const weeklyDigest =
     settings.find((s) => s.key === "weekly_digest")?.value === "1";
+
+  // ─── CSV Export state ─────────────────────────────────────────────────────
+  const now = new Date();
+
+  // Confirmed export selection
+  const [exportMode, setExportMode] = useState<ExportMode>("month");
+  const [exportYear, setExportYear] = useState(now.getFullYear());
+  const [exportMonth, setExportMonth] = useState(now.getMonth() + 1); // 1-12
+  const [exportFromYear, setExportFromYear] = useState(now.getFullYear());
+  const [exportFromMonth, setExportFromMonth] = useState(now.getMonth() + 1);
+  const [exportToYear, setExportToYear] = useState(now.getFullYear());
+  const [exportToMonth, setExportToMonth] = useState(now.getMonth() + 1);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // ─── Month picker modal state ─────────────────────────────────────────────
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerTab, setPickerTab] = useState<ExportMode>("month");
+  // Year shown in the single-month grid
+  const [pickerYear, setPickerYear] = useState(now.getFullYear());
+  // Draft from/to while the range picker is open — applied only on "Apply"
+  const [draftFromYear, setDraftFromYear] = useState(now.getFullYear());
+  const [draftFromMonth, setDraftFromMonth] = useState(now.getMonth() + 1);
+  const [draftToYear, setDraftToYear] = useState(now.getFullYear());
+  const [draftToMonth, setDraftToMonth] = useState(now.getMonth() + 1);
+
+  /** Opens the picker modal and seeds its internal state from the current confirmed selection. */
+  function openPicker() {
+    setPickerTab(exportMode);
+    setPickerYear(exportYear);
+    setDraftFromYear(exportFromYear);
+    setDraftFromMonth(exportFromMonth);
+    setDraftToYear(exportToYear);
+    setDraftToMonth(exportToMonth);
+    setPickerVisible(true);
+  }
+
+  /**
+   * Confirms the range selection. Validates that "To" is not before "From"
+   * before writing to export state and closing the modal.
+   */
+  function handleApplyRange() {
+    const fromVal = draftFromYear * 12 + draftFromMonth;
+    const toVal = draftToYear * 12 + draftToMonth;
+    if (toVal < fromVal) {
+      Alert.alert("Invalid Range", '"To" month cannot be before "From" month.');
+      return;
+    }
+    setExportMode("range");
+    setExportFromYear(draftFromYear);
+    setExportFromMonth(draftFromMonth);
+    setExportToYear(draftToYear);
+    setExportToMonth(draftToMonth);
+    setPickerVisible(false);
+  }
+
+  /**
+   * Sanitises and escapes a single CSV field per RFC 4180.
+   * Leading formula characters (=, +, -, @) are prefixed with a single quote
+   * to prevent spreadsheet formula injection when the file is opened in
+   * Excel or Google Sheets. Fields containing commas, quotes, carriage
+   * returns, or newlines are wrapped in double-quotes, with any internal
+   * double-quotes doubled.
+   */
+  function escapeCsvField(value: string): string {
+    const safeValue = /^[=+\-@]/.test(value) ? `'${value}` : value;
+    if (/[",\r\n]/.test(safeValue)) {
+      return `"${safeValue.replace(/"/g, '""')}"`;
+    }
+    return safeValue;
+  }
+
+  /**
+   * Filters transactions to the selected period and builds a CSV string.
+   * Both modes are unified into a range comparison — single month is the
+   * case where start and end prefixes are equal.
+   * Category and account columns use human-readable names, not raw UUIDs.
+   * Returns null when there are no transactions in the selected period.
+   */
+  function buildCsvExport(): string | null {
+    const startPrefix =
+      exportMode === "month"
+        ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
+        : `${exportFromYear}-${String(exportFromMonth).padStart(2, "0")}`;
+    const endPrefix =
+      exportMode === "month"
+        ? `${exportYear}-${String(exportMonth).padStart(2, "0")}`
+        : `${exportToYear}-${String(exportToMonth).padStart(2, "0")}`;
+    const filtered = transactions.filter((t) => {
+      const monthPrefix = t.date.substring(0, 7);
+      return monthPrefix >= startPrefix && monthPrefix <= endPrefix;
+    });
+    if (filtered.length === 0) return null;
+
+    // Precompute id-to-name maps for O(1) lookups per row instead of O(n*m)
+    const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+    const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
+
+    const header = "Date,Type,Amount,Category,Account,Note";
+    const rows = filtered.map((t) => {
+      const categoryName = categoryNameById.get(t.category_id) ?? t.category_id;
+      const accountName = accountNameById.get(t.account_id) ?? t.account_id;
+      return [
+        escapeCsvField(t.date),
+        escapeCsvField(t.type),
+        t.amount.toFixed(2),
+        escapeCsvField(categoryName),
+        escapeCsvField(accountName),
+        escapeCsvField(t.note ?? ""),
+      ].join(",");
+    });
+
+    return [header, ...rows].join("\n");
+  }
+
+  /**
+   * Generates the CSV for the selected period, writes it to a temporary cache
+   * file, then triggers the OS share sheet so the user can save or forward it.
+   */
+  async function handleExport() {
+    const csv = buildCsvExport();
+    if (!csv) {
+      const label =
+        exportMode === "month"
+          ? `${MONTH_NAMES[exportMonth - 1]} ${exportYear}`
+          : `${MONTH_NAMES[exportFromMonth - 1]} ${exportFromYear} to ${MONTH_NAMES[exportToMonth - 1]} ${exportToYear}`;
+      Alert.alert("No Data", `No transactions found for ${label}.`);
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const fileName =
+        exportMode === "month"
+          ? `budgetsync_${exportYear}_${String(exportMonth).padStart(2, "0")}.csv`
+          : `budgetsync_${exportFromYear}${String(exportFromMonth).padStart(2, "0")}_${exportToYear}${String(exportToMonth).padStart(2, "0")}.csv`;
+      const file = new File(Paths.cache, fileName);
+      file.create({ overwrite: true });
+      file.write(csv);
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "text/csv",
+        dialogTitle: "Export Transactions",
+        UTI: "public.comma-separated-values-text",
+      });
+    } catch {
+      Alert.alert(
+        "Export Failed",
+        "We couldn't export your transactions. Please try again.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -71,8 +271,125 @@ export default function SettingsScreen() {
     await setThemeMode(mode);
   }
 
+  async function handleSaveName(name: string) {
+    if (!userProfile) {
+      throw new Error("Profile unavailable");
+    }
+    await updateUserProfile({ ...userProfile, name });
+  }
+
+  // NEW PASSWORD LOGIC
+  async function handleSavePassword() {
+    if (!syncUser) {
+      Alert.alert("Security", "Connect sync first to change password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert("Weak Password", "Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const errorMsg = await updateSupabasePassword(newPassword);
+      if (errorMsg) {
+        Alert.alert("Update Failed", errorMsg);
+      } else {
+        Alert.alert("Success", "Password updated successfully.");
+        closePassModal();
+      }
+    } catch {
+      Alert.alert("Update Failed", "Something went wrong. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function closePassModal() {
+    setIsPassModalVisible(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setIsSaving(false);
+  }
+
+  async function selectCurrency(currency: string) {
+    if (!userProfile) return;
+    await updateUserProfile({ ...userProfile, currency });
+    setIsCurrencyModalVisible(false);
+  }
+
+  async function selectLanguage(language: string) {
+    if (!userProfile) return;
+    await updateUserProfile({ ...userProfile, language });
+    setIsLangModalVisible(false);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      <EditNameModal
+        visible={isEditModalVisible}
+        currentName={userProfile?.name || ""}
+        onSave={handleSaveName}
+        onClose={() => setIsEditModalVisible(false)}
+      />
+
+      {/* Password Modal */}
+      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={() => { if (!isSaving) closePassModal(); }}>
+        <KeyboardAvoidingView style={styles.passModalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Update Password</Text>
+
+            <View style={{ position: "relative" }}>
+              <TextInput
+                style={styles.textInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: "absolute", right: 15, top: 15 }}
+                onPress={() => setShowPassword((v) => !v)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ position: "relative" }}>
+              <TextInput
+                style={styles.textInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: "absolute", right: 15, top: 15 }}
+                onPress={() => setShowPassword((v) => !v)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={closePassModal} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSavePassword} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
+                {isSaving ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Update</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <View style={styles.headerRow}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -99,7 +416,11 @@ export default function SettingsScreen() {
                   color={colors.accent}
                 />
               </View>
-              <TouchableOpacity style={styles.editBadge}>
+              <TouchableOpacity
+                style={styles.editBadge}
+                disabled={!userProfile}
+                onPress={() => setIsEditModalVisible(true)}
+              >
                 <MaterialCommunityIcons
                   name="pencil"
                   size={12}
@@ -124,7 +445,8 @@ export default function SettingsScreen() {
           <MenuRow
             icon="cash-outline"
             title="Primary Currency"
-            subTitle={userProfile?.currency ?? "USD"}
+            subTitle={userProfile?.currency ?? "CAD"}
+            onPress={() => setIsCurrencyModalVisible(true)}
             colors={colors}
             styles={styles}
           />
@@ -133,6 +455,7 @@ export default function SettingsScreen() {
             icon="globe-outline"
             title="System Language"
             subTitle={userProfile?.language ?? "EN-US"}
+            onPress={() => setIsLangModalVisible(true)}
             colors={colors}
             styles={styles}
           />
@@ -154,33 +477,29 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.itemDivider} />
           <View style={styles.themeModeRow}>
-            {(["system", "light", "dark"] as ThemeMode[]).map((mode) => {
-              const isActive = themeMode === mode;
-              return (
-                <TouchableOpacity
-                  key={mode}
+            {(["system", "light", "dark"] as ThemeMode[]).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={[
+                  styles.themeModeButton,
+                  themeMode === mode && styles.themeModeButtonActive,
+                ]}
+                onPress={() => handleThemeModeChange(mode)}
+              >
+                <Text
                   style={[
-                    styles.themeModeButton,
-                    isActive && styles.themeModeButtonActive,
+                    styles.themeModeButtonText,
+                    themeMode === mode && styles.themeModeButtonTextActive,
                   ]}
-                  onPress={() => handleThemeModeChange(mode)}
-                  activeOpacity={0.8}
                 >
-                  <Text
-                    style={[
-                      styles.themeModeButtonText,
-                      isActive && styles.themeModeButtonTextActive,
-                    ]}
-                  >
-                    {mode === "system"
-                      ? "System"
-                      : mode === "light"
-                        ? "Light"
-                        : "Dark"}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  {mode === "system"
+                    ? "System"
+                    : mode === "light"
+                      ? "Light"
+                      : "Dark"}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -215,8 +534,45 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>DATA EXPORT</Text>
+        <View style={styles.card}>
+          {/* Tappable row showing the current period selection */}
+          <TouchableOpacity
+            style={styles.monthPickerRow}
+            onPress={openPicker}
+            activeOpacity={0.7}
+          >
+            <View>
+              <Text style={styles.monthLabel}>
+                {exportMode === "month"
+                  ? `${MONTH_NAMES[exportMonth - 1]} ${exportYear}`
+                  : `${MONTH_NAMES[exportFromMonth - 1]} ${exportFromYear} to ${MONTH_NAMES[exportToMonth - 1]} ${exportToYear}`}
+              </Text>
+              <Text style={styles.monthSubLabel}>Tap to change period</Text>
+            </View>
+            <Ionicons name="calendar-outline" size={20} color={colors.accent} />
+          </TouchableOpacity>
+          <View style={styles.itemDivider} />
+          <TouchableOpacity
+            style={[styles.exportBtn, isExporting && { opacity: 0.6 }]}
+            onPress={handleExport}
+            disabled={isExporting}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="download-outline"
+              size={18}
+              color={colors.onAccent}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.exportBtnText}>
+              {isExporting ? "Exporting..." : "Export CSV"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>SECURITY</Text>
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => syncUser ? setIsPassModalVisible(true) : Alert.alert("Security", "Connect sync first to change password.")}>
           <MaterialCommunityIcons
             name="refresh"
             size={20}
@@ -236,16 +592,290 @@ export default function SettingsScreen() {
             Delete Account
           </Text>
         </TouchableOpacity>
-
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ─── Currency Picker Modal ─── */}
+      <Modal visible={isCurrencyModalVisible} animationType="slide" transparent onRequestClose={() => setIsCurrencyModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Currency</Text>
+              <TouchableOpacity onPress={() => setIsCurrencyModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={CURRENCIES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectRow} onPress={() => selectCurrency(item)}>
+                  <Text style={[styles.selectText, item === (userProfile?.currency ?? "CAD") && { color: colors.accent, fontWeight: "700" }]}>{item}</Text>
+                  {item === (userProfile?.currency ?? "CAD") && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Language Picker Modal ─── */}
+      <Modal visible={isLangModalVisible} animationType="slide" transparent onRequestClose={() => setIsLangModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Language</Text>
+              <TouchableOpacity onPress={() => setIsLangModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={LANGUAGES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectRow} onPress={() => selectLanguage(item)}>
+                  <Text style={[styles.selectText, item === (userProfile?.language ?? "EN-US") && { color: colors.accent, fontWeight: "700" }]}>{item}</Text>
+                  {item === (userProfile?.language ?? "EN-US") && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Period Picker Modal ─── */}
+      <Modal
+        visible={pickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            {/* Header */}
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Period</Text>
+              <TouchableOpacity onPress={() => setPickerVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Month / Range tab toggle */}
+            <View style={styles.pickerToggle}>
+              {(["month", "range"] as ExportMode[]).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[
+                    styles.pickerTabBtn,
+                    pickerTab === tab && styles.pickerTabActive,
+                  ]}
+                  onPress={() => setPickerTab(tab)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.pickerTabText,
+                      pickerTab === tab && styles.pickerTabTextActive,
+                    ]}
+                  >
+                    {tab === "month" ? "Month" : "Range"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {pickerTab === "month" ? (
+                <>
+                  {/* Year navigation */}
+                  <View style={styles.yearRow}>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setPickerYear((y) => y - 1)}
+                    >
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={colors.accent}
+                      />
+                    </TouchableOpacity>
+                    <Text style={styles.yearLabel}>{pickerYear}</Text>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setPickerYear((y) => y + 1)}
+                    >
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.accent}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Month grid — tap to confirm and close */}
+                  <View style={styles.monthGrid}>
+                    {MONTH_NAMES.map((name, i) => {
+                      const month = i + 1;
+                      const isSelected =
+                        exportMode === "month" &&
+                        exportYear === pickerYear &&
+                        exportMonth === month;
+                      return (
+                        <TouchableOpacity
+                          key={name}
+                          style={[
+                            styles.monthCell,
+                            isSelected && styles.monthCellActive,
+                          ]}
+                          onPress={() => {
+                            setExportMode("month");
+                            setExportYear(pickerYear);
+                            setExportMonth(month);
+                            setPickerVisible(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.monthCellText,
+                              isSelected && styles.monthCellTextActive,
+                            ]}
+                          >
+                            {name.slice(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : (
+                <>
+                  {/* From picker */}
+                  <Text style={styles.rangeLabel}>FROM</Text>
+                  <View style={styles.yearRow}>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftFromYear((y) => y - 1)}
+                    >
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={colors.accent}
+                      />
+                    </TouchableOpacity>
+                    <Text style={styles.yearLabel}>{draftFromYear}</Text>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftFromYear((y) => y + 1)}
+                    >
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.accent}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.monthGrid}>
+                    {MONTH_NAMES.map((name, i) => {
+                      const month = i + 1;
+                      const isSelected = draftFromMonth === month;
+                      return (
+                        <TouchableOpacity
+                          key={name}
+                          style={[
+                            styles.monthCell,
+                            isSelected && styles.monthCellActive,
+                          ]}
+                          onPress={() => setDraftFromMonth(month)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.monthCellText,
+                              isSelected && styles.monthCellTextActive,
+                            ]}
+                          >
+                            {name.slice(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* To picker */}
+                  <Text style={[styles.rangeLabel, { marginTop: 8 }]}>TO</Text>
+                  <View style={styles.yearRow}>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftToYear((y) => y - 1)}
+                    >
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={colors.accent}
+                      />
+                    </TouchableOpacity>
+                    <Text style={styles.yearLabel}>{draftToYear}</Text>
+                    <TouchableOpacity
+                      style={styles.yearArrow}
+                      onPress={() => setDraftToYear((y) => y + 1)}
+                    >
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={colors.accent}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.monthGrid}>
+                    {MONTH_NAMES.map((name, i) => {
+                      const month = i + 1;
+                      const isSelected = draftToMonth === month;
+                      return (
+                        <TouchableOpacity
+                          key={name}
+                          style={[
+                            styles.monthCell,
+                            isSelected && styles.monthCellActive,
+                          ]}
+                          onPress={() => setDraftToMonth(month)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.monthCellText,
+                              isSelected && styles.monthCellTextActive,
+                            ]}
+                          >
+                            {name.slice(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Apply button */}
+                  <TouchableOpacity
+                    style={styles.applyBtn}
+                    onPress={handleApplyRange}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.applyBtnText}>Apply Range</Text>
+                  </TouchableOpacity>
+                  <View style={{ height: 8 }} />
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function MenuRow({ icon, title, subTitle, colors, styles }: MenuRowProps) {
+function MenuRow({ icon, title, subTitle, onPress, colors, styles }: MenuRowProps) {
   return (
-    <TouchableOpacity style={styles.menuItemRow}>
+    <TouchableOpacity style={styles.menuItemRow} onPress={onPress}>
       <View style={styles.menuLeft}>
         <View style={styles.iconBox}>
           <Ionicons name={icon} size={20} color={colors.accent} />
@@ -355,11 +985,7 @@ function createStyles(colors: Colors) {
       justifyContent: "space-between",
       padding: 16,
     },
-    themeModeRow: {
-      flexDirection: "row",
-      gap: 10,
-      padding: 16,
-    },
+    themeModeRow: { flexDirection: "row", gap: 10, padding: 16 },
     themeModeButton: {
       flex: 1,
       borderRadius: 12,
@@ -382,6 +1008,153 @@ function createStyles(colors: Colors) {
     themeModeButtonTextActive: {
       color: colors.accent,
     },
+    monthPickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 16,
+    },
+    monthLabel: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    monthSubLabel: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    // ─── Password modal ─────────────────────────────────────────────────────
+    passModalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center", alignItems: "center", padding: 20 },
+    modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+    textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
+    modalButtons: { flexDirection: "row", gap: 12, marginTop: 8 },
+    modalBtn: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center" },
+
+    // ─── Picker modal ───────────────────────────────────────────────────────
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: colors.overlay,
+    },
+    pickerSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      paddingBottom: 12,
+      maxHeight: "85%",
+    },
+    pickerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    pickerTitle: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    pickerToggle: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 4,
+      marginBottom: 20,
+    },
+    pickerTabBtn: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 10,
+      alignItems: "center",
+    },
+    pickerTabActive: { backgroundColor: colors.accent },
+    pickerTabText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    pickerTabTextActive: { color: colors.onAccent, fontWeight: "700" },
+    yearRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    yearArrow: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.accentBg,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    yearLabel: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: "700",
+    },
+    monthGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 16,
+    },
+    monthCell: {
+      width: "22%",
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+    },
+    monthCellActive: {
+      backgroundColor: colors.accent,
+    },
+    monthCellText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    monthCellTextActive: {
+      color: colors.onAccent,
+      fontWeight: "700",
+    },
+    rangeLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 1,
+      marginBottom: 12,
+    },
+    applyBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 16,
+      paddingVertical: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    applyBtnText: {
+      color: colors.onAccent,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    exportBtn: {
+      flexDirection: "row",
+      backgroundColor: colors.accent,
+      margin: 16,
+      borderRadius: 14,
+      paddingVertical: 14,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    exportBtnText: {
+      color: colors.onAccent,
+      fontSize: 15,
+      fontWeight: "700",
+    },
     actionBtn: {
       flexDirection: "row",
       backgroundColor: colors.surface,
@@ -402,6 +1175,19 @@ function createStyles(colors: Colors) {
       color: colors.textPrimary,
       fontWeight: "700",
       fontSize: 15,
+    },
+    selectRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 16,
+      paddingHorizontal: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    selectText: {
+      color: colors.textPrimary,
+      fontSize: 16,
     },
   });
 }

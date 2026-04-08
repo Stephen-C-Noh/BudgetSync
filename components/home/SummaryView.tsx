@@ -1,20 +1,20 @@
+import NavRow from "@/components/shared/NavRow";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { Category, Transaction } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
 import React, { useMemo, useState } from "react";
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import { BarChart } from "react-native-chart-kit";
-import { Category, Transaction } from "@/lib/types";
-import NavRow from "@/components/shared/NavRow";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 type Props = {
   transactions: Transaction[];
   categories: Category[];
+  currency?: string;
 };
 
-export default function HomeSummaryView({ transactions, categories }: Props) {
+export default function HomeSummaryView({ transactions, categories, currency = "CAD" }: Props) {
   const { colors } = useTheme();
   const [year, setYear] = useState(new Date().getFullYear());
   const currentMonth = new Date().getMonth();
@@ -76,7 +76,7 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
             <Text style={styles.tileLabel}>Income</Text>
           </View>
           <Text style={styles.tileAmount}>
-            ${income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency} {income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
         <View style={styles.summaryTile}>
@@ -87,7 +87,7 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
           <Text style={styles.tileAmount}>
-            ${expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency} {expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
       </View>
@@ -107,7 +107,7 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
               }}
               width={SCREEN_WIDTH - 40}
               height={200}
-              yAxisLabel="$"
+              yAxisLabel={`${currency} `}
               yAxisSuffix=""
               chartConfig={chartConfig}
               style={styles.chart}
@@ -119,7 +119,7 @@ export default function HomeSummaryView({ transactions, categories }: Props) {
             <View key={c.name} style={styles.catRow}>
               <View style={styles.catRowTop}>
                 <Text style={styles.catName}>{c.icon}  {c.name}</Text>
-                <Text style={styles.catAmount}>${c.total.toFixed(2)}</Text>
+                <Text style={styles.catAmount}>{currency} {c.total.toFixed(2)}</Text>
               </View>
               <View style={styles.progressBg}>
                 <View style={[styles.progressFill, { width: `${expenseTotal > 0 ? (c.total / expenseTotal) * 100 : 0}%` as any }]} />

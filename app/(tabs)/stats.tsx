@@ -1,8 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
-import { useMemo, useState } from "react";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -17,7 +16,6 @@ import Svg, { Circle } from "react-native-svg";
 const TOP_TABS = ["Overview", "Expenses", "Income"] as const;
 type TopTab = (typeof TOP_TABS)[number];
 
-// Generate last N months as { label, year, month } objects
 function getRecentMonths(count: number) {
   const result = [];
   const now = new Date();
@@ -29,22 +27,33 @@ function getRecentMonths(count: number) {
       month: d.getMonth(),
     });
   }
-  return result;
+  // Reverse so the oldest is on the left and the newest (current) is on the right
+  return result.reverse();
 }
 
-const MONTH_OPTIONS = getRecentMonths(3);
+const MONTH_OPTIONS = getRecentMonths(12);
 
 export default function StatsScreen() {
-  const { transactions, categories, budgetGoals, isLoading } = useAppState();
+  const { transactions, categories, budgetGoals, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
-  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+
+  // Set initial selection to the last index (the most recent month)
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(MONTH_OPTIONS.length - 1);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
+  const monthScrollRef = useRef<ScrollView>(null);
 
-  // Filter transactions by selected month + tab type
+  const currency = userProfile?.currency || "CAD";
+  const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
   const txType = activeTopTab === "Expenses" ? "expense" : activeTopTab === "Income" ? "income" : null;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      monthScrollRef.current?.scrollToEnd({ animated: false });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const filteredTxs = useMemo(() => {
     return transactions.filter((tx) => {
@@ -56,25 +65,21 @@ export default function StatsScreen() {
     });
   }, [transactions, selectedMonth, txType]);
 
-  // Total spending/income for selected period
   const totalAmount = useMemo(
     () => filteredTxs.reduce((sum, tx) => sum + tx.amount, 0),
     [filteredTxs]
   );
 
-  // Category map
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
     [categories]
   );
 
-  // Monthly budget total (sum of all monthly goals)
   const totalMonthlyBudget = useMemo(
     () => budgetGoals.filter((g) => g.period === "monthly").reduce((sum, g) => sum + g.limit_amount, 0),
     [budgetGoals]
   );
 
-  // Spending breakdown by category
   const breakdown = useMemo(() => {
     const map: Record<string, number> = {};
     for (const tx of filteredTxs) {
@@ -173,7 +178,6 @@ export default function StatsScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.headerTitle}>Stats</Text>
 
-        {/* Top tabs */}
         <View style={styles.topTabs}>
           {TOP_TABS.map((tab) => {
             const isActive = activeTopTab === tab;
@@ -186,24 +190,30 @@ export default function StatsScreen() {
           })}
         </View>
 
-        {/* Month chips */}
-        <View style={styles.monthRow}>
-          {MONTH_OPTIONS.map((m, idx) => {
-            const isActive = idx === selectedMonthIdx;
-            return (
-              <TouchableOpacity
-                key={m.label}
-                style={[styles.monthChip, isActive && styles.monthChipActive]}
-                onPress={() => setSelectedMonthIdx(idx)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.monthChipText, isActive && styles.monthChipTextActive]}>
-                  {idx === 0 ? m.label : m.label.split(" ")[0]}
-                </Text>
-                {isActive && <Ionicons name="chevron-down" size={14} color={colors.textPrimary} />}
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.monthScrollWrapper}>
+          <ScrollView
+            ref={monthScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.monthScrollContent}
+          >
+            {MONTH_OPTIONS.map((m, idx) => {
+              const isActive = idx === selectedMonthIdx;
+              return (
+                <TouchableOpacity
+                  key={m.label}
+                  style={[styles.monthChip, isActive && styles.monthChipActive]}
+                  onPress={() => setSelectedMonthIdx(idx)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.monthChipText, isActive && styles.monthChipTextActive]}>
+                    {m.label.split(" ")[0]} {m.year}
+                  </Text>
+                  {isActive && <Ionicons name="chevron-down" size={12} color={colors.textPrimary} style={{ marginLeft: 2 }} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {activeTopTab === "Overview" ? (
@@ -225,8 +235,7 @@ export default function StatsScreen() {
                       { color: netCashflow >= 0 ? colors.income : colors.expense },
                     ]}
                   >
-                    {netCashflow >= 0 ? "+" : "-"}$
-                    {Math.abs(netCashflow).toLocaleString("en-US", {
+                    {netCashflow >= 0 ? "+" : "-"}{currency} {Math.abs(netCashflow).toLocaleString("en-US", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -244,7 +253,7 @@ export default function StatsScreen() {
                       <Text style={[styles.summaryLabel, { marginBottom: 0 }]}>Income</Text>
                     </View>
                     <Text style={[styles.summaryValue, { color: colors.income }]}>
-                      ${totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {currency} {totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                   </View>
                   <View style={[styles.summaryCard, { borderColor: colors.expenseSubtle }]}>
@@ -253,10 +262,11 @@ export default function StatsScreen() {
                       <Text style={[styles.summaryLabel, { marginBottom: 0 }]}>Expenses</Text>
                     </View>
                     <Text style={[styles.summaryValue, { color: colors.expense }]}>
-                      ${totalExpense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {currency} {totalExpense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                   </View>
                 </View>
+
                 {/* Dual-bar weekly chart: income (green) + expense (cyan) per week */}
                 <View style={styles.card}>
                   <View style={styles.weekHeader}>
@@ -308,7 +318,7 @@ export default function StatsScreen() {
                   {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
                 </Text>
                 <Text style={styles.summaryValue}>
-                  ${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {currency} {totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
               </View>
 
@@ -317,7 +327,7 @@ export default function StatsScreen() {
                 {totalMonthlyBudget > 0 ? (
                   <>
                     <Text style={styles.summaryValue}>
-                      ${totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {currency} {totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                     <View style={styles.progressTrack}>
                       <View
@@ -386,7 +396,7 @@ export default function StatsScreen() {
                           <Text style={styles.legendText}>{item.label}</Text>
                         </View>
                         <Text style={styles.legendAmount}>
-                          ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {currency} {item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                       </View>
                     ))}
@@ -433,8 +443,9 @@ function createStyles(colors: Colors) {
     topTabTextActive: { color: colors.accent, fontWeight: "700" },
     topTabUnderline: { width: "100%", height: 2, marginTop: 6, borderRadius: 999, backgroundColor: colors.accent },
 
-    monthRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
-    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip },
+    monthScrollWrapper: { marginBottom: 18 },
+    monthScrollContent: { paddingRight: 16, gap: 8 },
+    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip, minWidth: 90, justifyContent: "center" },
     monthChipActive: { backgroundColor: colors.accent },
     monthChipText: { color: colors.tabBarInactive, fontSize: 12, fontWeight: "600" },
     monthChipTextActive: { color: colors.textPrimary },
