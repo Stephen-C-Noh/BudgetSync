@@ -11,12 +11,15 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -51,6 +54,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const {
     userProfile,
+    syncUser,
     isLoading,
     settings,
     accounts,
@@ -269,7 +273,7 @@ export default function SettingsScreen() {
 
   // NEW PASSWORD LOGIC
   async function handleSavePassword() {
-    if (!userProfile?.email) {
+    if (!syncUser) {
       Alert.alert("Security", "Connect sync first to change password.");
       return;
     }
@@ -305,9 +309,9 @@ export default function SettingsScreen() {
         onClose={() => setIsEditModalVisible(false)}
       />
 
-      {/* NEW PASSWORD MODAL (matches Name Modal style) */}
+      {/* Password Modal */}
       <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={() => setIsPassModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Password</Text>
 
@@ -346,7 +350,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <View style={styles.headerRow}>
@@ -933,6 +937,13 @@ function createStyles(colors: Colors) {
       fontSize: 12,
       marginTop: 2,
     },
+    // ─── Password modal ─────────────────────────────────────────────────────
+    modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+    textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
+    modalButtons: { flexDirection: "row", gap: 12, marginTop: 8 },
+    modalBtn: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center" },
+
     // ─── Picker modal ───────────────────────────────────────────────────────
     modalOverlay: {
       flex: 1,
