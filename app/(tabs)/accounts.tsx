@@ -58,16 +58,16 @@ export default function AccountsScreen() {
         </View>
 
         {activeTab === "Daily" && (
-          <DailyView transactions={transactions} categories={categories} />
+          <DailyView transactions={transactions} categories={categories} currency={currency} />
         )}
         {activeTab === "Calendar" && (
           <CalendarView transactions={transactions} categories={categories} />
         )}
         {activeTab === "Monthly" && (
-          <AccountsMonthlyView accounts={accounts} />
+          <AccountsMonthlyView accounts={accounts} currency={currency} />
         )}
         {activeTab === "Summary" && (
-          <AccountsSummaryView accounts={accounts} transactions={transactions} categories={categories} />
+          <AccountsSummaryView accounts={accounts} transactions={transactions} categories={categories} currency={currency} />
         )}
 
         <View style={{ height: 30 }} />
