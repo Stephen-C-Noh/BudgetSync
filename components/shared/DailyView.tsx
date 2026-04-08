@@ -12,9 +12,10 @@ import TxRow from "./TxRow";
 type Props = {
   transactions: Transaction[];
   categories: Category[];
+  currency?: string;
 };
 
-export default function DailyView({ transactions, categories }: Props) {
+export default function DailyView({ transactions, categories, currency = "CAD" }: Props) {
   const router = useRouter();
   const { colors } = useTheme();
   const [date, setDate] = useState(new Date());
@@ -56,7 +57,7 @@ export default function DailyView({ transactions, categories }: Props) {
             </View>
             <Text style={styles.tileLabel}>Income</Text>
           </View>
-          <Text style={styles.tileAmount}>${income.toFixed(2)}</Text>
+          <Text style={styles.tileAmount}>{currency} {income.toFixed(2)}</Text>
         </View>
         <View style={styles.summaryTile}>
           <View style={styles.tileIconRow}>
@@ -65,7 +66,7 @@ export default function DailyView({ transactions, categories }: Props) {
             </View>
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
-          <Text style={styles.tileAmount}>${expense.toFixed(2)}</Text>
+          <Text style={styles.tileAmount}>{currency} {expense.toFixed(2)}</Text>
         </View>
       </View>
 

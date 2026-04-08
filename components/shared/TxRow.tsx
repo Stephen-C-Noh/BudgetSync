@@ -1,7 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { Category, Transaction } from "@/lib/types";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
   Alert,
@@ -16,7 +16,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Category, Transaction } from "@/lib/types";
 
 type Props = {
   tx: Transaction;
@@ -25,9 +24,12 @@ type Props = {
 };
 
 export default function TxRow({ tx, category, dateLabel }: Props) {
-  const { categories } = useAppState();
+  // Pulling userProfile to get the live currency
+  const { categories, userProfile } = useAppState();
   const { updateTransaction, deleteTransaction } = useAppActions();
   const { colors } = useTheme();
+
+  const currency = userProfile?.currency || "CAD";
 
   const [editVisible, setEditVisible] = useState(false);
   const [editType, setEditType] = useState<"expense" | "income">(tx.type);
@@ -57,7 +59,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
   function handleLongPress() {
     Alert.alert(
       "Delete Transaction",
-      `Delete ${tx.type === "expense" ? "-" : "+"}$${tx.amount.toFixed(2)} · ${category?.name ?? "—"}?`,
+      `Delete ${tx.type === "expense" ? "-" : "+"}${currency} ${tx.amount.toFixed(2)} · ${category?.name ?? "—"}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -110,7 +112,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
           </View>
         </View>
         <Text style={[styles.txAmount, tx.type === "expense" ? styles.expenseColor : styles.incomeColor]}>
-          {tx.type === "expense" ? "-" : "+"}${tx.amount.toFixed(2)}
+          {tx.type === "expense" ? "-" : "+"}{currency} {tx.amount.toFixed(2)}
         </Text>
       </TouchableOpacity>
 
@@ -162,7 +164,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
 
               {/* Amount */}
               <View style={styles.amountRow}>
-                <Text style={styles.amountPrefix}>$</Text>
+                <Text style={styles.amountPrefix}>{currency}</Text>
                 <TextInput
                   style={styles.amountInput}
                   value={editAmount}

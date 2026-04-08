@@ -11,6 +11,7 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -25,10 +26,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "KRW", "CAD", "AUD", "SGD", "HKD", "CNY"];
+const LANGUAGES = ["EN-US", "KO-KR", "JA-JP", "ZH-CN", "FR-FR", "ES-ES", "DE-DE"];
+
 interface MenuRowProps {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subTitle?: string;
+  onPress?: () => void;
   colors: Colors;
   styles: ReturnType<typeof createStyles>;
 }
@@ -68,6 +73,8 @@ export default function SettingsScreen() {
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isPassModalVisible, setIsPassModalVisible] = useState(false);
+  const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [isLangModalVisible, setIsLangModalVisible] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -310,6 +317,18 @@ export default function SettingsScreen() {
     setIsSaving(false);
   }
 
+  async function selectCurrency(currency: string) {
+    if (!userProfile) return;
+    await updateUserProfile({ ...userProfile, currency });
+    setIsCurrencyModalVisible(false);
+  }
+
+  async function selectLanguage(language: string) {
+    if (!userProfile) return;
+    await updateUserProfile({ ...userProfile, language });
+    setIsLangModalVisible(false);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <EditNameModal
@@ -426,7 +445,8 @@ export default function SettingsScreen() {
           <MenuRow
             icon="cash-outline"
             title="Primary Currency"
-            subTitle={userProfile?.currency ?? "USD"}
+            subTitle={userProfile?.currency ?? "CAD"}
+            onPress={() => setIsCurrencyModalVisible(true)}
             colors={colors}
             styles={styles}
           />
@@ -435,6 +455,7 @@ export default function SettingsScreen() {
             icon="globe-outline"
             title="System Language"
             subTitle={userProfile?.language ?? "EN-US"}
+            onPress={() => setIsLangModalVisible(true)}
             colors={colors}
             styles={styles}
           />
@@ -573,6 +594,54 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ─── Currency Picker Modal ─── */}
+      <Modal visible={isCurrencyModalVisible} animationType="slide" transparent onRequestClose={() => setIsCurrencyModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Currency</Text>
+              <TouchableOpacity onPress={() => setIsCurrencyModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={CURRENCIES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectRow} onPress={() => selectCurrency(item)}>
+                  <Text style={[styles.selectText, item === (userProfile?.currency ?? "CAD") && { color: colors.accent, fontWeight: "700" }]}>{item}</Text>
+                  {item === (userProfile?.currency ?? "CAD") && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Language Picker Modal ─── */}
+      <Modal visible={isLangModalVisible} animationType="slide" transparent onRequestClose={() => setIsLangModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Language</Text>
+              <TouchableOpacity onPress={() => setIsLangModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={LANGUAGES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectRow} onPress={() => selectLanguage(item)}>
+                  <Text style={[styles.selectText, item === (userProfile?.language ?? "EN-US") && { color: colors.accent, fontWeight: "700" }]}>{item}</Text>
+                  {item === (userProfile?.language ?? "EN-US") && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* ─── Period Picker Modal ─── */}
       <Modal
@@ -804,9 +873,9 @@ export default function SettingsScreen() {
   );
 }
 
-function MenuRow({ icon, title, subTitle, colors, styles }: MenuRowProps) {
+function MenuRow({ icon, title, subTitle, onPress, colors, styles }: MenuRowProps) {
   return (
-    <TouchableOpacity style={styles.menuItemRow}>
+    <TouchableOpacity style={styles.menuItemRow} onPress={onPress}>
       <View style={styles.menuLeft}>
         <View style={styles.iconBox}>
           <Ionicons name={icon} size={20} color={colors.accent} />
@@ -1106,6 +1175,19 @@ function createStyles(colors: Colors) {
       color: colors.textPrimary,
       fontWeight: "700",
       fontSize: 15,
+    },
+    selectRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 16,
+      paddingHorizontal: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    selectText: {
+      color: colors.textPrimary,
+      fontSize: 16,
     },
   });
 }

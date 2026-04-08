@@ -2,9 +2,9 @@ import {
   deleteAccount as dbDeleteAccount,
   deleteBudgetGoal as dbDeleteBudgetGoal,
   deleteCategory as dbDeleteCategory,
-  updateCategory as dbUpdateCategory,
   deleteTransaction as dbDeleteTransaction,
   updateAccount as dbUpdateAccount,
+  updateCategory as dbUpdateCategory,
   updateTransaction as dbUpdateTransaction,
   getAccounts,
   getBudgetGoals,
@@ -124,19 +124,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     initialize();
   }, []);
 
-  // Foreground sync: push unsynced transactions + all accounts when app becomes active
   const accountsRef = useRef<Account[]>([]);
   useEffect(() => {
     accountsRef.current = accounts;
   }, [accounts]);
 
-  /*
-          Why refs instead of reading settings/transactions directly inside the listener?
-            The useEffect with [] runs once and captures a stale closure 
-            settings and transactions inside the listener would always be their initial empty arrays. 
-            Refs always point to the latest value, which is why the existing code already 
-            uses accountsRef and syncUserRef for the same reason.
-  */
   const settingsRef = useRef<Setting[]>([]);
   useEffect(() => {
     settingsRef.current = settings;
@@ -150,7 +142,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (state) => {
       if (state !== "active") return;
-      // Weekly digest — runs for ALL users, no sync required
       const digestEnabled =
         settingsRef.current.find((s) => s.key === "weekly_digest")?.value ===
         "1";
@@ -169,7 +160,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             await scheduleLocalNotification("Weekly Summary", summary);
             await updateSetting("last_digest_at", new Date().toISOString());
           } catch {
-            // weekly digest failure is silent — will retry next foreground
+            // weekly digest failure is silent
           }
         }
       }
@@ -196,7 +187,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           );
         }
       } catch {
-        // Sync failure is silent — will retry next foreground
+        // Sync failure is silent
       }
     });
     return () => subscription.remove();
@@ -214,10 +205,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  /**
-   * Persists all mutable field changes to an account and refreshes local state.
-   * Does not adjust transaction history — balance is stored directly.
-   */
   const updateAccount = async (account: Account) => {
     await dbUpdateAccount(account);
     setAccounts((prev) => prev.map((a) => (a.id === account.id ? account : a)));
@@ -230,10 +217,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  /**
-   * Deletes an account and removes it from local state.
-   * Transactions that reference this account are left intact (orphan-safe).
-   */
   const deleteAccount = async (id: string) => {
     await dbDeleteAccount(id);
     setAccounts((prev) => prev.filter((a) => a.id !== id));
@@ -241,7 +224,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const addTransaction = async (transaction: Transaction) => {
     await insertTransaction(transaction);
-    // Update account balance
     const account = accounts.find((a) => a.id === transaction.account_id);
     if (account) {
       const delta =
@@ -258,7 +240,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
     setTransactions((prev) => [transaction, ...prev]);
 
-    // Budget Alert Check!
     if (settings.find((s) => s.key === "budget_alerts")?.value === "1") {
       try {
         await checkBudgetAlerts(
@@ -268,7 +249,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           categories,
         );
       } catch {
-        /* notification failures should not block transaction creation */
+        /* notification failures should not block */
       }
     }
   };
@@ -276,7 +257,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const deleteTransaction = async (id: string) => {
     const tx = transactions.find((t) => t.id === id);
     if (tx) {
-      // Reverse the balance effect
       const account = accounts.find((a) => a.id === tx.account_id);
       if (account) {
         const delta = tx.type === "income" ? -tx.amount : tx.amount;
@@ -295,7 +275,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const updateTransaction = async (tx: Transaction) => {
     await dbUpdateTransaction(tx);
-    // Reload accounts from DB since the atomic update already adjusted balances
     const updatedAccounts = await getAccounts();
     setAccounts(updatedAccounts);
     setTransactions((prev) => prev.map((t) => (t.id === tx.id ? tx : t)));
@@ -306,31 +285,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCategories((prev) => [...prev, category]);
   };
 
-  /**
-   * Persists name and icon changes to a category and updates local state.
-   * Type and is_custom are immutable after creation — this function rejects
-   * updates that attempt to change them or target a built-in category, and
-   * only applies name/icon to state so local state cannot diverge from the DB.
-   */
   const updateCategory = async (category: Category) => {
     const existing = categories.find((c) => c.id === category.id);
-    if (!existing) {
-      throw new Error("Category not found.");
-    }
-    // Built-in categories are read-only
-    if (existing.is_custom !== 1) {
-      throw new Error("Built-in categories cannot be edited.");
-    }
-    if (
-      existing.type !== category.type ||
-      existing.is_custom !== category.is_custom
-    ) {
-      throw new Error(
-        "Category type and is_custom cannot be changed after creation.",
-      );
+    if (!existing) throw new Error("Category not found.");
+    if (existing.is_custom !== 1) throw new Error("Built-in categories cannot be edited.");
+    if (existing.type !== category.type || existing.is_custom !== category.is_custom) {
+      throw new Error("Category metadata is immutable.");
     }
     await dbUpdateCategory(category.id, category.name, category.icon);
-    // Only apply the mutable fields to state to stay in sync with the DB
     setCategories((prev) =>
       prev.map((c) =>
         c.id === category.id
@@ -355,9 +317,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setBudgetGoals((prev) => prev.filter((g) => g.id !== id));
   };
 
+
   const updateUserProfile = async (profile: UserProfile) => {
     await upsertUserProfile(profile);
-    setUserProfile(profile);
+    // Spreading into a new object triggers the UI refresh
+    setUserProfile({ ...profile });
   };
 
   const updateSetting = async (key: string, value: string) => {
@@ -369,10 +333,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  const loginSync = async (
-    email: string,
-    password: string,
-  ): Promise<string | null> => {
+  const loginSync = async (email: string, password: string): Promise<string | null> => {
     const error = await signInSupabase(email, password);
     if (error) return error;
     const user = await getSupabaseUser();
@@ -381,10 +342,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return null;
   };
 
-  const signUpSync = async (
-    email: string,
-    password: string,
-  ): Promise<string | null> => {
+  const signUpSync = async (email: string, password: string): Promise<string | null> => {
     const error = await signUpSupabase(email, password);
     if (error) return error;
     const user = await getSupabaseUser();

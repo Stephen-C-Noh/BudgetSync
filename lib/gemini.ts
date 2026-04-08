@@ -1,11 +1,10 @@
-import * as SecureStore from "expo-secure-store";
 import { Category, Transaction } from "@/lib/types";
+import * as SecureStore from "expo-secure-store";
 
 const GEMINI_KEY_STORE = "budgetsync_gemini_key";
 const GEMINI_MODEL_STORE = "budgetsync_gemini_model";
 const GEMINI_LIST_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
-// Preferred free-tier models in order — first one found in the account wins.
 const MODEL_PREFERENCE = [
   "gemini-2.5-flash",
   "gemini-2.0-flash",
@@ -30,8 +29,6 @@ export async function clearGeminiKey(): Promise<void> {
   await SecureStore.deleteItemAsync(GEMINI_MODEL_STORE);
 }
 
-// Returns null on success, or an error message string on failure.
-// On success, detects and caches the best available free-tier model.
 export async function validateGeminiKey(key: string): Promise<string | null> {
   try {
     const trimmed = key.trim();
@@ -63,14 +60,14 @@ export async function validateGeminiKey(key: string): Promise<string | null> {
 async function getModel(key: string): Promise<string> {
   const saved = await SecureStore.getItemAsync(GEMINI_MODEL_STORE);
   if (saved) return saved;
-  // First sendMessage after key was stored without model detection — detect now.
   await validateGeminiKey(key);
   return (await SecureStore.getItemAsync(GEMINI_MODEL_STORE)) ?? "gemini-2.0-flash";
 }
 
 function buildSystemPrompt(
   transactions: Transaction[],
-  categories: Category[]
+  categories: Category[],
+  currency: string
 ): string {
   const now = new Date();
   const cutoff = new Date(now);
@@ -95,15 +92,15 @@ function buildSystemPrompt(
 
   const breakdown = Array.from(expenseByCategory.entries())
     .sort((a, b) => b[1] - a[1])
-    .map(([cat, amt]) => `  - ${cat}: $${amt.toFixed(2)}`)
+    .map(([cat, amt]) => `  - ${cat}: ${currency} ${amt.toFixed(2)}`)
     .join("\n");
 
-  return `You are SyncBot, a friendly and concise personal finance assistant inside the BudgetSync app. Answer the user's questions using their financial data below. Keep responses brief and actionable.
+  return `You are SyncBot, a friendly and concise personal finance assistant inside the BudgetSync app. Answer the user's questions using their financial data below. The user's preferred currency is ${currency}. ALWAYS format money values using ${currency}. Keep responses brief and actionable.
 
 User's last 30 days:
-- Total income: $${totalIncome.toFixed(2)}
-- Total expenses: $${totalExpense.toFixed(2)}
-- Net: $${(totalIncome - totalExpense).toFixed(2)}
+- Total income: ${currency} ${totalIncome.toFixed(2)}
+- Total expenses: ${currency} ${totalExpense.toFixed(2)}
+- Net: ${currency} ${(totalIncome - totalExpense).toFixed(2)}
 - Expense breakdown by category:
 ${breakdown || "  (no expense data yet)"}`;
 }
@@ -112,7 +109,8 @@ export async function sendMessage(
   userMessage: string,
   history: GeminiTurn[],
   transactions: Transaction[],
-  categories: Category[]
+  categories: Category[],
+  currency: string
 ): Promise<string> {
   const key = await getGeminiKey();
   if (!key) throw new Error("NO_KEY");
@@ -122,7 +120,7 @@ export async function sendMessage(
 
   const body = {
     system_instruction: {
-      parts: [{ text: buildSystemPrompt(transactions, categories) }],
+      parts: [{ text: buildSystemPrompt(transactions, categories, currency) }],
     },
     contents: [
       ...history,
@@ -139,7 +137,6 @@ export async function sendMessage(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = (err as { error?: { message?: string } })?.error?.message;
-    // Only treat explicit auth failures as INVALID_KEY
     if (res.status === 401 || res.status === 403) throw new Error("INVALID_KEY");
     throw new Error(msg ?? `API error ${res.status}`);
   }

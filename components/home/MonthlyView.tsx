@@ -1,21 +1,21 @@
+import NavRow from "@/components/shared/NavRow";
+import TxRow from "@/components/shared/TxRow";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { MONTH_NAMES } from "@/lib/dateUtils";
+import { Account, Category, Transaction } from "@/lib/types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { MONTH_NAMES } from "@/lib/dateUtils";
-import { Account, Category, Transaction } from "@/lib/types";
-import NavRow from "@/components/shared/NavRow";
-import TxRow from "@/components/shared/TxRow";
 
 type Props = {
   accounts: Account[];
   transactions: Transaction[];
   categories: Category[];
+  currency?: string; // ADDED: Currency prop
 };
 
-export default function HomeMonthlyView({ accounts, transactions, categories }: Props) {
+export default function HomeMonthlyView({ accounts, transactions, categories, currency = "CAD" }: Props) {
   const router = useRouter();
   const { colors } = useTheme();
   const [year, setYear] = useState(new Date().getFullYear());
@@ -62,7 +62,7 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Total Balance</Text>
         <Text style={styles.balanceAmount}>
-          ${totalBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {currency} {totalBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
         {primaryAccount && (
           <View style={styles.cardRow}>
@@ -83,7 +83,7 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
             <Text style={styles.tileLabel}>Income</Text>
           </View>
           <Text style={styles.tileAmount}>
-            ${income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency} {income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
         <View style={styles.summaryTile}>
@@ -94,7 +94,7 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
           <Text style={styles.tileAmount}>
-            ${expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency} {expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
       </View>
@@ -120,6 +120,7 @@ export default function HomeMonthlyView({ accounts, transactions, categories }: 
     </>
   );
 }
+
 
 function createStyles(colors: Colors) {
   return StyleSheet.create({

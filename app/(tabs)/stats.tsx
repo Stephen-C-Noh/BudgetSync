@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,7 +16,6 @@ import Svg, { Circle } from "react-native-svg";
 const TOP_TABS = ["Overview", "Expenses", "Income"] as const;
 type TopTab = (typeof TOP_TABS)[number];
 
-// Generate last N months as { label, year, month } objects
 function getRecentMonths(count: number) {
   const result = [];
   const now = new Date();
@@ -35,15 +33,17 @@ function getRecentMonths(count: number) {
 const MONTH_OPTIONS = getRecentMonths(3);
 
 export default function StatsScreen() {
-  const { transactions, categories, budgetGoals, isLoading } = useAppState();
+  // added pull userProfile here to get the currency
+  const { transactions, categories, budgetGoals, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
   const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
+  // Define dynamic currency
+  const currency = userProfile?.currency || "CAD";
 
-  // Filter transactions by selected month + tab type
+  const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
   const txType = activeTopTab === "Expenses" ? "expense" : activeTopTab === "Income" ? "income" : null;
 
   const filteredTxs = useMemo(() => {
@@ -55,25 +55,21 @@ export default function StatsScreen() {
     });
   }, [transactions, selectedMonth, txType]);
 
-  // Total spending/income for selected period
   const totalAmount = useMemo(
     () => filteredTxs.reduce((sum, tx) => sum + tx.amount, 0),
     [filteredTxs]
   );
 
-  // Category map
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
     [categories]
   );
 
-  // Monthly budget total (sum of all monthly goals)
   const totalMonthlyBudget = useMemo(
     () => budgetGoals.filter((g) => g.period === "monthly").reduce((sum, g) => sum + g.limit_amount, 0),
     [budgetGoals]
   );
 
-  // Spending breakdown by category
   const breakdown = useMemo(() => {
     const map: Record<string, number> = {};
     for (const tx of filteredTxs) {
@@ -90,7 +86,6 @@ export default function StatsScreen() {
 
   const topCategory = breakdown[0]?.label ?? "—";
 
-  // Weekly totals (W1=1-7, W2=8-14, W3=15-21, W4=22+)
   const weeklyTotals = useMemo(() => {
     const weeks = [0, 0, 0, 0];
     for (const tx of filteredTxs) {
@@ -103,7 +98,6 @@ export default function StatsScreen() {
 
   const maxWeekly = Math.max(...weeklyTotals, 1);
 
-  // Donut chart — show top category share
   const chart = useMemo(() => {
     const radius = 72;
     const strokeWidth = 16;
@@ -128,7 +122,6 @@ export default function StatsScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.headerTitle}>Stats</Text>
 
-        {/* Top tabs */}
         <View style={styles.topTabs}>
           {TOP_TABS.map((tab) => {
             const isActive = activeTopTab === tab;
@@ -141,7 +134,6 @@ export default function StatsScreen() {
           })}
         </View>
 
-        {/* Month chips */}
         <View style={styles.monthRow}>
           {MONTH_OPTIONS.map((m, idx) => {
             const isActive = idx === selectedMonthIdx;
@@ -161,14 +153,13 @@ export default function StatsScreen() {
           })}
         </View>
 
-        {/* Summary cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>
               {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
             </Text>
             <Text style={styles.summaryValue}>
-              ${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {currency} {totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
 
@@ -177,7 +168,7 @@ export default function StatsScreen() {
             {totalMonthlyBudget > 0 ? (
               <>
                 <Text style={styles.summaryValue}>
-                  ${totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {currency} {totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
                 <View style={styles.progressTrack}>
                   <View
@@ -194,7 +185,6 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        {/* Spending breakdown */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
             {activeTopTab === "Income" ? "Income Breakdown" : "Spending Breakdown"}
@@ -246,7 +236,7 @@ export default function StatsScreen() {
                       <Text style={styles.legendText}>{item.label}</Text>
                     </View>
                     <Text style={styles.legendAmount}>
-                      ${item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {currency} {item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                   </View>
                 ))}
@@ -255,7 +245,6 @@ export default function StatsScreen() {
           )}
         </View>
 
-        {/* Weekly trends */}
         <View style={styles.card}>
           <View style={styles.weekHeader}>
             <Text style={styles.cardTitle}>Weekly Trends</Text>
