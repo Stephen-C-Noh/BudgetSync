@@ -287,17 +287,27 @@ export default function SettingsScreen() {
     }
 
     setIsSaving(true);
-    const errorMsg = await updateSupabasePassword(newPassword);
-    setIsSaving(false);
-
-    if (errorMsg) {
-      Alert.alert("Update Failed", errorMsg);
-    } else {
-      Alert.alert("Success", "Password updated successfully.");
-      setIsPassModalVisible(false);
-      setNewPassword("");
-      setConfirmPassword("");
+    try {
+      const errorMsg = await updateSupabasePassword(newPassword);
+      if (errorMsg) {
+        Alert.alert("Update Failed", errorMsg);
+      } else {
+        Alert.alert("Success", "Password updated successfully.");
+        closePassModal();
+      }
+    } catch {
+      Alert.alert("Update Failed", "Something went wrong. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
+  }
+
+  function closePassModal() {
+    setIsPassModalVisible(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setIsSaving(false);
   }
 
   return (
@@ -310,7 +320,7 @@ export default function SettingsScreen() {
       />
 
       {/* Password Modal */}
-      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={() => setIsPassModalVisible(false)}>
+      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={closePassModal}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Password</Text>
@@ -342,7 +352,7 @@ export default function SettingsScreen() {
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={() => setIsPassModalVisible(false)} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+              <TouchableOpacity onPress={closePassModal} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
                 <Text style={{ color: colors.textPrimary }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleSavePassword} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
