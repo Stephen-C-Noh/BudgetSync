@@ -325,7 +325,7 @@ export default function SettingsScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Password</Text>
 
-            <View style={{ position: 'relative' }}>
+            <View style={{ position: "relative" }}>
               <TextInput
                 style={styles.textInput}
                 value={newPassword}
@@ -335,14 +335,14 @@ export default function SettingsScreen() {
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity
-                style={{ position: 'absolute', right: 15, top: 15 }}
-                onPress={() => setShowPassword(!showPassword)}
+                style={{ position: "absolute", right: 15, top: 15 }}
+                onPress={() => setShowPassword((v) => !v)}
               >
                 <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ position: 'relative' }}>
+            <View style={{ position: "relative" }}>
               <TextInput
                 style={styles.textInput}
                 value={confirmPassword}
@@ -352,8 +352,8 @@ export default function SettingsScreen() {
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity
-                style={{ position: 'absolute', right: 15, top: 15 }}
-                onPress={() => setShowPassword(!showPassword)}
+                style={{ position: "absolute", right: 15, top: 15 }}
+                onPress={() => setShowPassword((v) => !v)}
               >
                 <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
               </TouchableOpacity>
