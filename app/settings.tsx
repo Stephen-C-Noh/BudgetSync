@@ -320,8 +320,8 @@ export default function SettingsScreen() {
       />
 
       {/* Password Modal */}
-      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={closePassModal}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={() => { if (!isSaving) closePassModal(); }}>
+        <KeyboardAvoidingView style={styles.passModalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Password</Text>
 
@@ -342,17 +342,25 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <TextInput
-              style={styles.textInput}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm Password"
-              placeholderTextColor={colors.textSecondary}
-              secureTextEntry={!showPassword}
-            />
+            <View style={{ position: 'relative' }}>
+              <TextInput
+                style={styles.textInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 15, top: 15 }}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={closePassModal} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+              <TouchableOpacity onPress={closePassModal} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
                 <Text style={{ color: colors.textPrimary }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleSavePassword} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
@@ -543,7 +551,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>SECURITY</Text>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => setIsPassModalVisible(true)}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => syncUser ? setIsPassModalVisible(true) : Alert.alert("Security", "Connect sync first to change password.")}>
           <MaterialCommunityIcons
             name="refresh"
             size={20}
@@ -948,6 +956,7 @@ function createStyles(colors: Colors) {
       marginTop: 2,
     },
     // ─── Password modal ─────────────────────────────────────────────────────
+    passModalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center", alignItems: "center", padding: 20 },
     modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
     modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
     textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
