@@ -78,6 +78,10 @@ export default function AddTransactionScreen() {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
+    if (accounts.length === 0) {
+      Alert.alert("No Account", "No account found. Please add an account first.");
+      return;
+    }
     if (!selectedAccountId) {
       Alert.alert("No Account", "Please select an account first.");
       return;
@@ -110,7 +114,7 @@ export default function AddTransactionScreen() {
           <View style={{ width: 22 }} />
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
           <View style={styles.toggle}>
             <TouchableOpacity
               style={[styles.toggleBtn, type === "expense" && styles.toggleActive]}
