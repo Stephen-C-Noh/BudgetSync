@@ -294,7 +294,7 @@ export default function BudgetGoalsScreen() {
               title="No Budget Goals"
               description="Set a monthly limit for your categories to stay on track."
               buttonLabel="Add First Goal"
-              onPress={() => openModal()}
+              onPress={openModal}
             />
           ) : (
             budgetGoals.map((goal, index) => {
