@@ -48,11 +48,11 @@ export default function StatsScreen() {
   const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
   const txType = activeTopTab === "Expenses" ? "expense" : activeTopTab === "Income" ? "income" : null;
 
-  // Auto scroll to the most recent month on mount
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       monthScrollRef.current?.scrollToEnd({ animated: false });
     }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   const filteredTxs = useMemo(() => {
@@ -298,7 +298,7 @@ function createStyles(colors: Colors) {
 
     monthScrollWrapper: { marginBottom: 18 },
     monthScrollContent: { paddingRight: 16, gap: 8 },
-    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip, minWidth: 90, justifyContent: 'center' },
+    monthChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.statsChip, minWidth: 90, justifyContent: "center" },
     monthChipActive: { backgroundColor: colors.accent },
     monthChipText: { color: colors.tabBarInactive, fontSize: 12, fontWeight: "600" },
     monthChipTextActive: { color: colors.textPrimary },
