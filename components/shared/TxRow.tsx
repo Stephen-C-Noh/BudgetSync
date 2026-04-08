@@ -96,6 +96,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
       account_id: editAccountId,
       note: editNote.trim() || undefined,
       date: editDate,
+      synced: 0,
     });
     setIsSaving(false);
     setEditVisible(false);

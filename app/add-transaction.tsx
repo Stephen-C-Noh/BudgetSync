@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -31,7 +31,13 @@ export default function AddTransactionScreen() {
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("0.00");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(accounts[0]?.id || "");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+
+  useEffect(() => {
+    if (accounts.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
