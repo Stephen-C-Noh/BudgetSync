@@ -1,5 +1,5 @@
 import NavRow from "@/components/shared/NavRow";
-import { useAppActions, useAppState } from "@/context/AppContext";
+import { useAppActions } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { MONTH_NAMES } from "@/lib/dateUtils";
 import { Account } from "@/lib/types";
@@ -65,7 +65,6 @@ type Props = {
 
 export default function AccountsMonthlyView({ accounts, currency = "CAD" }: Props) {
   const { addAccount, updateAccount, deleteAccount } = useAppActions();
-  const { userProfile } = useAppState();
   const { colors } = useTheme();
 
   const [year, setYear] = useState(new Date().getFullYear());
