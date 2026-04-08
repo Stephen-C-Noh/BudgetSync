@@ -1,11 +1,11 @@
+import { Colors, useTheme } from "@/context/ThemeContext";
+import { formatDate } from "@/lib/dateUtils";
+import { Category, Transaction } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { formatDate } from "@/lib/dateUtils";
-import { Category, Transaction } from "@/lib/types";
+import EmptyState from "./EmptyState";
 import NavRow from "./NavRow";
 import TxRow from "./TxRow";
 
@@ -69,20 +69,27 @@ export default function DailyView({ transactions, categories }: Props) {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => router.push(`/add-transaction?date=${dateStr}`)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
-        <Text style={styles.addButtonText}>+ Add Transaction</Text>
-      </TouchableOpacity>
+      {dayTxs.length > 0 && (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => router.push(`/add-transaction?date=${dateStr}`)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
+          <Text style={styles.addButtonText}>+ Add Transaction</Text>
+        </TouchableOpacity>
+      )}
 
       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>TRANSACTIONS</Text>
+
       {dayTxs.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No transactions on this day.</Text>
-        </View>
+        <EmptyState
+          icon="format-list-bulleted"
+          title="No Transactions"
+          description={`You haven't recorded any activity for ${dateStr}.`}
+          buttonLabel="Add Transaction"
+          onPress={() => router.push(`/add-transaction?date=${dateStr}`)}
+        />
       ) : (
         dayTxs.map((tx) => (
           <TxRow key={tx.id} tx={tx} category={categoryMap.get(tx.category_id)} />
@@ -111,7 +118,6 @@ function createStyles(colors: Colors) {
     },
     addButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
     sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
-    emptyText: { color: colors.textSecondary, fontSize: 14 },
+
   });
 }
