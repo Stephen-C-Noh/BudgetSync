@@ -1,9 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
 import { formatDate } from "@/lib/dateUtils";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
@@ -33,6 +34,21 @@ function getMaxDate(): Date {
   return d;
 }
 
+/** Converts a raw digit string into currency display, e.g. "123" -> "1.23". */
+function formatAmountFromDigits(digits: string): string {
+  const normalized = digits.replace(/\D/g, "");
+  const safeDigits = normalized === "" ? "0" : normalized;
+  const cents = parseInt(safeDigits, 10) || 0;
+  return (cents / 100).toFixed(2);
+}
+
+/** Extracts only digits from the text input and returns a safe raw digit string. */
+function extractDigits(text: string): string {
+  const onlyDigits = text.replace(/\D/g, "");
+  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
+  return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+}
+
 export default function AddTransactionScreen() {
   const router = useRouter();
   const { categories, accounts } = useAppState();
@@ -40,29 +56,29 @@ export default function AddTransactionScreen() {
   const { colors } = useTheme();
 
   const [type, setType] = useState<"expense" | "income">("expense");
-  const [amount, setAmount] = useState("0.00");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [amountDigits, setAmountDigits] = useState("0");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null
+  );
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const amount = useMemo(
+    () => formatAmountFromDigits(amountDigits),
+    [amountDigits]
+  );
+
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
 
-  // Build the initial date string from route param or today
   const _d = new Date();
   const todayStr = formatDate(_d);
 
-  /**
-   * The currently selected date as a YYYY-MM-DD string.
-   * Initialized from the `date` route param when navigating from a calendar view,
-   * otherwise defaults to today.
-   */
-  const [selectedDate, setSelectedDate] = useState<string>(dateParam ?? todayStr);
-
-  /** Whether the date picker UI is currently visible. */
+  const [selectedDate, setSelectedDate] = useState<string>(
+    dateParam ?? todayStr
+  );
   const [showPicker, setShowPicker] = useState(false);
 
-  /** The Date object derived from selectedDate, used by the native DateTimePicker. */
   const pickerDate = useMemo(() => {
     const [y, m, d] = selectedDate.split("-").map(Number);
     return new Date(y, m - 1, d);
@@ -76,43 +92,48 @@ export default function AddTransactionScreen() {
     setSelectedCategoryId(null);
   }
 
-  /**
-   * Handles a date selection from the native DateTimePicker.
-   * On Android the picker dismisses automatically; on iOS the user
-   * must tap "Done" to confirm (handled by `handleIOSConfirm`).
-   */
+  function handleAmountChange(text: string) {
+    const digits = extractDigits(text);
+    setAmountDigits(digits);
+  }
+
   function handleDateChange(_event: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === "android") {
       setShowPicker(false);
       if (date) setSelectedDate(formatDate(date));
     } else {
-      // iOS: update the picker preview live but keep modal open
       if (date) setSelectedDate(formatDate(date));
     }
   }
 
-  /** Confirms the selected date on iOS and closes the modal. */
   function handleIOSConfirm() {
     setShowPicker(false);
   }
 
   async function handleSave() {
     const parsed = parseFloat(amount);
+
     if (!parsed || parsed <= 0) {
       Alert.alert("Invalid Amount", "Please enter an amount greater than 0.");
       return;
     }
+
     if (!selectedCategoryId) {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
+
     if (!primaryAccount) {
-      Alert.alert("No Account", "No account found. Please add an account first.");
+      Alert.alert(
+        "No Account",
+        "No account found. Please add an account first."
+      );
       return;
     }
 
     setIsSaving(true);
     const now = new Date().toISOString();
+
     await addTransaction({
       id: Crypto.randomUUID(),
       account_id: primaryAccount.id,
@@ -124,6 +145,7 @@ export default function AddTransactionScreen() {
       created_at: now,
       synced: 0,
     });
+
     setIsSaving(false);
     router.back();
   }
@@ -131,164 +153,193 @@ export default function AddTransactionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={colors.accent} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Transaction</Text>
-        <View style={{ width: 22 }} />
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Expense / Income toggle */}
-        <View style={styles.toggle}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, type === "expense" && styles.toggleActive]}
-            onPress={() => handleTypeChange("expense")}
-          >
-            <Text style={[styles.toggleText, type === "expense" && styles.toggleTextActive]}>
-              Expense
-            </Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={colors.accent} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, type === "income" && styles.toggleActive]}
-            onPress={() => handleTypeChange("income")}
-          >
-            <Text style={[styles.toggleText, type === "income" && styles.toggleTextActive]}>
-              Income
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Add Transaction</Text>
+          <View style={{ width: 22 }} />
         </View>
 
-        {/* Amount */}
-        <View style={styles.amountRow}>
-          <Text style={styles.amountPrefix}>$</Text>
-          <TextInput
-            style={styles.amountInput}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            selectTextOnFocus
-          />
-        </View>
-
-        {/* Category picker */}
-        <Text style={styles.fieldLabel}>CATEGORY</Text>
-        <View style={styles.categoryWrap}>
-          {filteredCategories.map((cat) => (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+        >
+          <View style={styles.toggle}>
             <TouchableOpacity
-              key={cat.id}
-              style={[
-                styles.categoryPill,
-                selectedCategoryId === cat.id && styles.categoryPillActive,
-              ]}
-              onPress={() => setSelectedCategoryId(cat.id)}
+              style={[styles.toggleBtn, type === "expense" && styles.toggleActive]}
+              onPress={() => handleTypeChange("expense")}
             >
-              <Text style={styles.categoryIcon}>{cat.icon}</Text>
-              <Text style={[
-                styles.categoryText,
-                selectedCategoryId === cat.id && styles.categoryTextActive,
-              ]}>
-                {cat.name}
+              <Text
+                style={[
+                  styles.toggleText,
+                  type === "expense" && styles.toggleTextActive,
+                ]}
+              >
+                Expense
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* Date — tapping opens the native date picker */}
-        <Text style={styles.fieldLabel}>DATE</Text>
-        <TouchableOpacity style={styles.fieldRow} onPress={() => setShowPicker(true)}>
-          <Ionicons name="calendar-outline" size={18} color={colors.accent} style={{ marginRight: 10 }} />
-          <Text style={styles.fieldValue}>{selectedDate}</Text>
-          <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} style={styles.fieldChevron} />
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, type === "income" && styles.toggleActive]}
+              onPress={() => handleTypeChange("income")}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  type === "income" && styles.toggleTextActive,
+                ]}
+              >
+                Income
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Android: render the picker directly (it shows as a native dialog) */}
-        {Platform.OS === "android" && showPicker && (
-          <DateTimePicker
-            value={pickerDate}
-            mode="date"
-            display="default"
-            minimumDate={getMinDate()}
-            maximumDate={getMaxDate()}
-            onChange={handleDateChange}
-          />
-        )}
+          <View style={styles.amountRow}>
+            <Text style={styles.amountPrefix}>$</Text>
+            <TextInput
+              style={styles.amountInput}
+              value={amount}
+              onChangeText={handleAmountChange}
+              keyboardType="number-pad"
+              selection={{ start: amount.length, end: amount.length }}
+            />
+          </View>
 
-        {/* iOS: render the picker inside a modal with a Done button */}
-        {Platform.OS === "ios" && (
-          <Modal
-            visible={showPicker}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setShowPicker(false)}
+          <Text style={styles.fieldLabel}>CATEGORY</Text>
+          <View style={styles.categoryWrap}>
+            {filteredCategories.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryPill,
+                  selectedCategoryId === cat.id && styles.categoryPillActive,
+                ]}
+                onPress={() => setSelectedCategoryId(cat.id)}
+              >
+                <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                <Text
+                  style={[
+                    styles.categoryText,
+                    selectedCategoryId === cat.id && styles.categoryTextActive,
+                  ]}
+                >
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.fieldLabel}>DATE</Text>
+          <TouchableOpacity
+            style={styles.fieldRow}
+            onPress={() => setShowPicker(true)}
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Select Date</Text>
-                  <TouchableOpacity onPress={handleIOSConfirm} style={styles.modalDoneBtn}>
-                    <Text style={styles.modalDoneText}>Done</Text>
-                  </TouchableOpacity>
+            <Ionicons
+              name="calendar-outline"
+              size={18}
+              color={colors.accent}
+              style={{ marginRight: 10 }}
+            />
+            <Text style={styles.fieldValue}>{selectedDate}</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={colors.textSecondary}
+              style={styles.fieldChevron}
+            />
+          </TouchableOpacity>
+
+          {Platform.OS === "android" && showPicker && (
+            <DateTimePicker
+              value={pickerDate}
+              mode="date"
+              display="default"
+              minimumDate={getMinDate()}
+              maximumDate={getMaxDate()}
+              onChange={handleDateChange}
+            />
+          )}
+
+          {Platform.OS === "ios" && (
+            <Modal
+              visible={showPicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowPicker(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalSheet}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Select Date</Text>
+                    <TouchableOpacity
+                      onPress={handleIOSConfirm}
+                      style={styles.modalDoneBtn}
+                    >
+                      <Text style={styles.modalDoneText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={pickerDate}
+                    mode="date"
+                    display="spinner"
+                    minimumDate={getMinDate()}
+                    maximumDate={getMaxDate()}
+                    onChange={handleDateChange}
+                    style={styles.iosPicker}
+                    textColor={colors.textPrimary}
+                  />
                 </View>
-                <DateTimePicker
-                  value={pickerDate}
-                  mode="date"
-                  display="spinner"
-                  minimumDate={getMinDate()}
-                  maximumDate={getMaxDate()}
-                  onChange={handleDateChange}
-                  style={styles.iosPicker}
-                  textColor={colors.textPrimary}
-                />
               </View>
-            </View>
-          </Modal>
-        )}
+            </Modal>
+          )}
 
-        {/* Account */}
-        <Text style={styles.fieldLabel}>
-          {type === "expense" ? "PAYMENT METHOD" : "ACCOUNT"}
-        </Text>
-        <View style={styles.fieldRow}>
-          <Ionicons name="wallet-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-          <Text style={styles.fieldValue}>
-            {primaryAccount
-              ? `${primaryAccount.name}${primaryAccount.last4 ? `  •••• ${primaryAccount.last4}` : ""}`
-              : "No account"}
+          <Text style={styles.fieldLabel}>
+            {type === "expense" ? "PAYMENT METHOD" : "ACCOUNT"}
           </Text>
-        </View>
+          <View style={styles.fieldRow}>
+            <Ionicons
+              name="wallet-outline"
+              size={18}
+              color={colors.textSecondary}
+              style={{ marginRight: 10 }}
+            />
+            <Text style={styles.fieldValue}>
+              {primaryAccount
+                ? `${primaryAccount.name}${
+                    primaryAccount.last4 ? `  •••• ${primaryAccount.last4}` : ""
+                  }`
+                : "No account"}
+            </Text>
+          </View>
 
-        {/* Note */}
-        <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
-        <TextInput
-          style={styles.noteInput}
-          placeholder="Add a note..."
-          placeholderTextColor={colors.textSecondary}
-          value={note}
-          onChangeText={setNote}
-          multiline
-        />
+          <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
+          <TextInput
+            style={styles.noteInput}
+            placeholder="Add a note..."
+            placeholderTextColor={colors.textSecondary}
+            value={note}
+            onChangeText={setNote}
+            multiline
+          />
 
-        {/* Save */}
-        <TouchableOpacity
-          style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
-          onPress={handleSave}
-          disabled={isSaving}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.saveBtnText}>
-            {isSaving ? "Saving..." : "Save Transaction →"}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={isSaving}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.saveBtnText}>
+              {isSaving ? "Saving..." : "Save Transaction →"}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-          <Text style={styles.backLinkText}>BACK</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
+            <Text style={styles.backLinkText}>BACK</Text>
+          </TouchableOpacity>
 
-        <View style={{ height: 30 }} />
-      </ScrollView>
+          <View style={{ height: 30 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -306,7 +357,11 @@ function createStyles(colors: Colors) {
       paddingVertical: 15,
     },
     backBtn: { padding: 4 },
-    headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700" },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: "700",
+    },
 
     scroll: { paddingHorizontal: 20, paddingTop: 8 },
 
@@ -319,9 +374,18 @@ function createStyles(colors: Colors) {
       alignSelf: "center",
       width: "70%",
     },
-    toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+    toggleBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 10,
+      alignItems: "center",
+    },
     toggleActive: { backgroundColor: colors.accent },
-    toggleText: { color: colors.textSecondary, fontWeight: "600", fontSize: 15 },
+    toggleText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+      fontSize: 15,
+    },
     toggleTextActive: { color: colors.onAccent, fontWeight: "700" },
 
     amountRow: {
@@ -330,12 +394,17 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginBottom: 36,
     },
-    amountPrefix: { color: colors.accent, fontSize: 36, fontWeight: "700", marginRight: 4 },
+    amountPrefix: {
+      color: colors.accent,
+      fontSize: 36,
+      fontWeight: "700",
+      marginRight: 4,
+    },
     amountInput: {
       color: colors.accent,
       fontSize: 48,
       fontWeight: "800",
-      minWidth: 120,
+      minWidth: 160,
       textAlign: "center",
     },
 
@@ -347,7 +416,12 @@ function createStyles(colors: Colors) {
       marginBottom: 10,
     },
 
-    categoryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 28 },
+    categoryWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 28,
+    },
     categoryPill: {
       flexDirection: "row",
       alignItems: "center",
@@ -363,7 +437,11 @@ function createStyles(colors: Colors) {
       backgroundColor: colors.accentBg,
     },
     categoryIcon: { fontSize: 16, marginRight: 6 },
-    categoryText: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
+    categoryText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "500",
+    },
     categoryTextActive: { color: colors.accent },
 
     fieldRow: {
@@ -375,7 +453,6 @@ function createStyles(colors: Colors) {
       marginBottom: 24,
     },
     fieldValue: { color: colors.textPrimary, fontSize: 15, flex: 1 },
-    /** Pushes the chevron to the far right of the date row. */
     fieldChevron: { marginLeft: "auto" },
 
     noteInput: {
@@ -396,19 +473,25 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginBottom: 16,
     },
-    saveBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+    saveBtnText: {
+      color: colors.onAccent,
+      fontSize: 16,
+      fontWeight: "700",
+    },
 
     backLink: { alignItems: "center", marginBottom: 8 },
-    backLinkText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600", letterSpacing: 1 },
+    backLinkText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+      letterSpacing: 1,
+    },
 
-    // ── iOS date picker modal ──────────────────────────────────────────────
-    /** Semi-transparent backdrop that fills the screen. */
     modalOverlay: {
       flex: 1,
       justifyContent: "flex-end",
       backgroundColor: colors.overlay,
     },
-    /** Bottom sheet container for the iOS picker. */
     modalSheet: {
       backgroundColor: colors.surface,
       borderTopLeftRadius: 20,
@@ -424,9 +507,17 @@ function createStyles(colors: Colors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    modalTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
+    modalTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
     modalDoneBtn: { paddingVertical: 4, paddingHorizontal: 8 },
-    modalDoneText: { color: colors.accent, fontSize: 16, fontWeight: "700" },
+    modalDoneText: {
+      color: colors.accent,
+      fontSize: 16,
+      fontWeight: "700",
+    },
     iosPicker: { width: "100%" },
   });
 }
