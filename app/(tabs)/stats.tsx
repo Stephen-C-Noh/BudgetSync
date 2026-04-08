@@ -241,7 +241,7 @@ export default function StatsScreen() {
                   <View style={[styles.summaryCard, { borderColor: colors.incomeSubtle }]}>
                     <View style={styles.tileLabelRow}>
                       <View style={[styles.tileDot, { backgroundColor: colors.income }]} />
-                      <Text style={styles.summaryLabel}>Income</Text>
+                      <Text style={[styles.summaryLabel, { marginBottom: 0 }]}>Income</Text>
                     </View>
                     <Text style={[styles.summaryValue, { color: colors.income }]}>
                       ${totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -250,7 +250,7 @@ export default function StatsScreen() {
                   <View style={[styles.summaryCard, { borderColor: colors.expenseSubtle }]}>
                     <View style={styles.tileLabelRow}>
                       <View style={[styles.tileDot, { backgroundColor: colors.expense }]} />
-                      <Text style={styles.summaryLabel}>Expenses</Text>
+                      <Text style={[styles.summaryLabel, { marginBottom: 0 }]}>Expenses</Text>
                     </View>
                     <Text style={[styles.summaryValue, { color: colors.expense }]}>
                       ${totalExpense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -261,7 +261,7 @@ export default function StatsScreen() {
                 <View style={styles.card}>
                   <View style={styles.weekHeader}>
                     <Text style={styles.cardTitle}>Weekly Cashflow</Text>
-                    <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
+                    <Text style={styles.weekSubtext}>Weeks of the Month</Text>
                   </View>
                   <View style={styles.dualBarLegend}>
                     <View style={styles.legendLeft}>
@@ -399,7 +399,7 @@ export default function StatsScreen() {
             <View style={styles.card}>
               <View style={styles.weekHeader}>
                 <Text style={styles.cardTitle}>Weekly Trends</Text>
-                <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
+                <Text style={styles.weekSubtext}>Weeks of the Month</Text>
               </View>
               <View style={styles.weekChart}>
                 {weeklyTotals.map((val, i) => {
