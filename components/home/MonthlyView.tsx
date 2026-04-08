@@ -62,7 +62,6 @@ export default function HomeMonthlyView({ accounts, transactions, categories, cu
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Total Balance</Text>
         <Text style={styles.balanceAmount}>
-          {/* FIXED: Replaced $ with {currency} */}
           {currency} {totalBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
         {primaryAccount && (
@@ -84,7 +83,6 @@ export default function HomeMonthlyView({ accounts, transactions, categories, cu
             <Text style={styles.tileLabel}>Income</Text>
           </View>
           <Text style={styles.tileAmount}>
-            {/* FIXED: Replaced $ with {currency} */}
             {currency} {income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
@@ -96,7 +94,6 @@ export default function HomeMonthlyView({ accounts, transactions, categories, cu
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
           <Text style={styles.tileAmount}>
-            {/* FIXED: Replaced $ with {currency} */}
             {currency} {expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>

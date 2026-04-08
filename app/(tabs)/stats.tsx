@@ -159,7 +159,6 @@ export default function StatsScreen() {
               {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
             </Text>
             <Text style={styles.summaryValue}>
-              {/* eplaced $ with {currency} */}
               {currency} {totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
@@ -169,7 +168,6 @@ export default function StatsScreen() {
             {totalMonthlyBudget > 0 ? (
               <>
                 <Text style={styles.summaryValue}>
-                  {/* FIXED: Replaced $ with {currency} */}
                   {currency} {totalMonthlyBudget.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
                 <View style={styles.progressTrack}>
@@ -238,7 +236,6 @@ export default function StatsScreen() {
                       <Text style={styles.legendText}>{item.label}</Text>
                     </View>
                     <Text style={styles.legendAmount}>
-                      {/* FIXED: Replaced $ with {currency} */}
                       {currency} {item.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Text>
                   </View>

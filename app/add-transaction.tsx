@@ -167,7 +167,7 @@ export default function AddTransactionScreen() {
 
           {/* FIX: iOS PICKER (Wrapped in Modal for visibility) */}
           {showPicker && Platform.OS === "ios" && (
-            <Modal transparent animationType="fade">
+            <Modal transparent animationType="fade" visible={showPicker} onRequestClose={() => setShowPicker(false)}>
               <View style={styles.modalOverlay}>
                 <View style={styles.modalSheet}>
                   <View style={styles.modalHeader}>
@@ -243,7 +243,7 @@ function createStyles(colors: Colors) {
     saveBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
     backLink: { alignItems: "center", marginBottom: 8 },
     backLinkText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600", letterSpacing: 1 },
-    modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+    modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.overlay },
     modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
     modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },

@@ -59,7 +59,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
   function handleLongPress() {
     Alert.alert(
       "Delete Transaction",
-      // FIXED: Swapped $ for dynamic currency in the Alert
       `Delete ${tx.type === "expense" ? "-" : "+"}${currency} ${tx.amount.toFixed(2)} · ${category?.name ?? "—"}?`,
       [
         { text: "Cancel", style: "cancel" },
@@ -113,7 +112,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
           </View>
         </View>
         <Text style={[styles.txAmount, tx.type === "expense" ? styles.expenseColor : styles.incomeColor]}>
-          {/* FIXED: Swapped $ for dynamic currency in the Row list */}
           {tx.type === "expense" ? "-" : "+"}{currency} {tx.amount.toFixed(2)}
         </Text>
       </TouchableOpacity>
@@ -166,7 +164,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
 
               {/* Amount */}
               <View style={styles.amountRow}>
-                {/* FIXED: Swapped $ for dynamic currency in the Modal Edit screen */}
                 <Text style={styles.amountPrefix}>{currency}</Text>
                 <TextInput
                   style={styles.amountInput}
@@ -231,7 +228,6 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
   );
 }
 
-// createStyles remains identical to yours
 function createStyles(colors: Colors) {
   return StyleSheet.create({
     txRow: {

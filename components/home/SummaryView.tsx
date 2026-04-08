@@ -88,7 +88,6 @@ export default function HomeSummaryView({ transactions, categories, currency = "
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
           <Text style={styles.tileAmount}>
-            {/* FIXED: Swapped $ for {currency} */}
             {currency} {expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
@@ -109,7 +108,6 @@ export default function HomeSummaryView({ transactions, categories, currency = "
               }}
               width={SCREEN_WIDTH - 40}
               height={200}
-              yAxisLabel={currency} // FIXED: Swapped $ for {currency} in Chart
               yAxisSuffix=""
               chartConfig={chartConfig}
               style={styles.chart}
