@@ -190,10 +190,12 @@ export default function CategorySettingsScreen() {
           )}
         </View>
 
-        <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.85}>
-          <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
-          <Text style={styles.addBtnText}>Add Custom Category</Text>
-        </TouchableOpacity>
+        {displayCategories.length > 0 && (
+          <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.85}>
+            <Ionicons name="add-circle-outline" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />
+            <Text style={styles.addBtnText}>Add Custom Category</Text>
+          </TouchableOpacity>
+        )}
         <View style={{ height: 40 }} />
       </ScrollView>
 

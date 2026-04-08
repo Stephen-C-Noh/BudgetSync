@@ -65,7 +65,7 @@ export default function DailyView({ transactions, categories }: Props) {
             </View>
             <Text style={styles.tileLabel}>Expenses</Text>
           </View>
-          <Text style={Text.tileAmount}>${expense.toFixed(2)}</Text>
+          <Text style={styles.tileAmount}>${expense.toFixed(2)}</Text>
         </View>
       </View>
 
@@ -120,7 +120,6 @@ function createStyles(colors: Colors) {
     },
     addButtonText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
     sectionTitle: { color: colors.textPrimary, marginBottom: 15, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: "center" },
-    emptyText: { color: colors.textSecondary, fontSize: 14 },
+
   });
 }

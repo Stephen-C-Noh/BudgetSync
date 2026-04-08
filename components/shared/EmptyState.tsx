@@ -1,6 +1,6 @@
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface EmptyStateProps {
@@ -19,7 +19,7 @@ export default function EmptyState({
   onPress,
 }: EmptyStateProps) {
   const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <View style={styles.container}>
