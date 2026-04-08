@@ -70,6 +70,15 @@ export async function initializeDatabase() {
     );
   `);
 
+  // Idempotent migration: add starred column if it doesn't already exist
+  try {
+    await database.execAsync(
+      "ALTER TABLE transactions ADD COLUMN starred INTEGER DEFAULT 0;"
+    );
+  } catch {
+    // SQLite throws if column already exists — safe to ignore
+  }
+
   // Seed default categories
   const catResult = await database.getFirstAsync<{ count: number }>(
     "SELECT COUNT(*) as count FROM categories",
@@ -103,13 +112,7 @@ export async function initializeDatabase() {
   if (profileResult?.count === 0) {
     await database.runAsync(
       "INSERT INTO user_profile (id, name, email, currency, language) VALUES (?, ?, ?, ?, ?)",
-      [
-        Crypto.randomUUID(),
-        "",
-        "",
-        "CAD",
-        "EN-US",
-      ],
+      [Crypto.randomUUID(), "", "", "CAD", "EN-US"],
     );
   }
 
@@ -165,7 +168,7 @@ export async function updateAccountBalance(
  * Updates all mutable fields of an existing account.
  *
  * Balance is stored directly on the account row and set to whatever the caller
- * provides — this is intentional for manual edits.  The caller is responsible
+ * provides — this is intentional for manual edits. The caller is responsible
  * for not accidentally overwriting a balance that was adjusted by a transaction.
  *
  * @param account - Full account object; the `id` field identifies the row to update.
@@ -273,7 +276,7 @@ export async function insertTransaction(
 ): Promise<void> {
   const database = await db;
   await database.runAsync(
-    "INSERT INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced, starred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       transaction.id,
       transaction.account_id,
@@ -284,6 +287,7 @@ export async function insertTransaction(
       transaction.date,
       transaction.created_at,
       transaction.synced,
+      transaction.starred ?? 0,
     ],
   );
 }
@@ -307,12 +311,14 @@ export async function updateTransaction(
       await database.execAsync("ROLLBACK");
       return;
     }
+
     // Reverse old balance effect
     const oldDelta = old.type === "income" ? -old.amount : old.amount;
     await database.runAsync(
       "UPDATE accounts SET balance = balance + ? WHERE id = ?",
       [oldDelta, old.account_id],
     );
+
     // Apply new balance effect
     const newDelta =
       transaction.type === "income" ? transaction.amount : -transaction.amount;
@@ -320,9 +326,10 @@ export async function updateTransaction(
       "UPDATE accounts SET balance = balance + ? WHERE id = ?",
       [newDelta, transaction.account_id],
     );
+
     // Update the transaction record
     await database.runAsync(
-      "UPDATE transactions SET account_id=?, category_id=?, type=?, amount=?, note=?, date=? WHERE id=?",
+      "UPDATE transactions SET account_id=?, category_id=?, type=?, amount=?, note=?, date=?, starred=? WHERE id=?",
       [
         transaction.account_id,
         transaction.category_id,
@@ -330,9 +337,11 @@ export async function updateTransaction(
         transaction.amount,
         transaction.note ?? null,
         transaction.date,
+        transaction.starred ?? 0,
         transaction.id,
       ],
     );
+
     await database.execAsync("COMMIT");
   } catch (e) {
     await database.execAsync("ROLLBACK");
@@ -410,7 +419,7 @@ export async function upsertTransaction(
 ): Promise<void> {
   const database = await db;
   await database.runAsync(
-    "INSERT OR REPLACE INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO transactions (id, account_id, category_id, type, amount, note, date, created_at, synced, starred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       transaction.id,
       transaction.account_id,
@@ -421,6 +430,7 @@ export async function upsertTransaction(
       transaction.date,
       transaction.created_at,
       transaction.synced,
+      transaction.starred ?? 0,
     ],
   );
 }

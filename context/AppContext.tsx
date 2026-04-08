@@ -2,9 +2,9 @@ import {
   deleteAccount as dbDeleteAccount,
   deleteBudgetGoal as dbDeleteBudgetGoal,
   deleteCategory as dbDeleteCategory,
-  updateCategory as dbUpdateCategory,
   deleteTransaction as dbDeleteTransaction,
   updateAccount as dbUpdateAccount,
+  updateCategory as dbUpdateCategory,
   updateTransaction as dbUpdateTransaction,
   getAccounts,
   getBudgetGoals,
@@ -88,6 +88,13 @@ interface AppActionsType {
 const AppContext = createContext<AppContextType | null>(null);
 const AppActionsContext = createContext<AppActionsType | null>(null);
 
+function normalizeTransaction(tx: Transaction): Transaction {
+  return {
+    ...tx,
+    starred: tx.starred ?? 0,
+  };
+}
+
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -111,9 +118,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         getSettings(),
         getSupabaseUser(),
       ]);
+
       setAccounts(accs);
       setCategories(cats);
-      setTransactions(txs);
+      setTransactions(txs.map(normalizeTransaction));
       setBudgetGoals(goals);
       setUserProfile(profile);
       setSettings(sets);
@@ -121,22 +129,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       syncUserRef.current = user;
       setIsLoading(false);
     }
+
     initialize();
   }, []);
 
-  // Foreground sync: push unsynced transactions + all accounts when app becomes active
   const accountsRef = useRef<Account[]>([]);
   useEffect(() => {
     accountsRef.current = accounts;
   }, [accounts]);
 
-  /*
-          Why refs instead of reading settings/transactions directly inside the listener?
-            The useEffect with [] runs once and captures a stale closure 
-            settings and transactions inside the listener would always be their initial empty arrays. 
-            Refs always point to the latest value, which is why the existing code already 
-            uses accountsRef and syncUserRef for the same reason.
-  */
   const settingsRef = useRef<Setting[]>([]);
   useEffect(() => {
     settingsRef.current = settings;
@@ -150,10 +151,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (state) => {
       if (state !== "active") return;
-      // Weekly digest — runs for ALL users, no sync required
+
       const digestEnabled =
         settingsRef.current.find((s) => s.key === "weekly_digest")?.value ===
         "1";
+
       if (digestEnabled) {
         const lastDigest =
           settingsRef.current.find((s) => s.key === "last_digest_at")?.value ??
@@ -163,20 +165,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           lastDigest && !Number.isNaN(parsedLastDigest)
             ? Date.now() - parsedLastDigest
             : Infinity;
+
         if (elapsed >= 7 * 24 * 60 * 60 * 1000) {
           try {
             const summary = buildWeeklySummary(transactionsRef.current);
             await scheduleLocalNotification("Weekly Summary", summary);
             await updateSetting("last_digest_at", new Date().toISOString());
           } catch {
-            // weekly digest failure is silent — will retry next foreground
+            // ignore
           }
         }
       }
 
       if (!syncUserRef.current) return;
+
       try {
         const [unsynced] = await Promise.all([getUnsyncedTransactions()]);
+
         await Promise.all([
           unsynced.length > 0
             ? pushTransactions(unsynced, syncUserRef.current.id)
@@ -185,120 +190,131 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             ? pushAccounts(accountsRef.current, syncUserRef.current.id)
             : Promise.resolve(),
         ]);
-        for (const t of unsynced) await markTransactionSynced(t.id);
+
+        for (const t of unsynced) {
+          await markTransactionSynced(t.id);
+        }
+
         if (unsynced.length > 0) {
           setTransactions((prev) =>
             prev.map((t) =>
               unsynced.some((u) => u.id === t.id)
                 ? { ...t, synced: 1 as const }
-                : t,
-            ),
+                : t
+            )
           );
         }
       } catch {
-        // Sync failure is silent — will retry next foreground
+        // ignore
       }
     });
+
     return () => subscription.remove();
   }, []);
 
   const addAccount = async (account: Account) => {
     await insertAccount(account);
     setAccounts((prev) => [...prev, account]);
+
     if (syncUserRef.current) {
       try {
         await pushAccounts([account], syncUserRef.current.id);
       } catch {
-        /* retry on next sync */
+        // ignore
       }
     }
   };
 
-  /**
-   * Persists all mutable field changes to an account and refreshes local state.
-   * Does not adjust transaction history — balance is stored directly.
-   */
   const updateAccount = async (account: Account) => {
     await dbUpdateAccount(account);
     setAccounts((prev) => prev.map((a) => (a.id === account.id ? account : a)));
+
     if (syncUserRef.current) {
       try {
         await pushAccounts([account], syncUserRef.current.id);
       } catch {
-        /* retry on next sync */
+        // ignore
       }
     }
   };
 
-  /**
-   * Deletes an account and removes it from local state.
-   * Transactions that reference this account are left intact (orphan-safe).
-   */
   const deleteAccount = async (id: string) => {
     await dbDeleteAccount(id);
     setAccounts((prev) => prev.filter((a) => a.id !== id));
   };
 
   const addTransaction = async (transaction: Transaction) => {
-    await insertTransaction(transaction);
-    // Update account balance
-    const account = accounts.find((a) => a.id === transaction.account_id);
+    const normalizedTransaction = normalizeTransaction(transaction);
+
+    await insertTransaction(normalizedTransaction);
+
+    const account = accounts.find((a) => a.id === normalizedTransaction.account_id);
     if (account) {
       const delta =
-        transaction.type === "income"
-          ? transaction.amount
-          : -transaction.amount;
+        normalizedTransaction.type === "income"
+          ? normalizedTransaction.amount
+          : -normalizedTransaction.amount;
       const newBalance = account.balance + delta;
+
       await updateAccountBalance(account.id, newBalance);
+
       setAccounts((prev) =>
         prev.map((a) =>
-          a.id === account.id ? { ...a, balance: newBalance } : a,
-        ),
+          a.id === account.id ? { ...a, balance: newBalance } : a
+        )
       );
     }
-    setTransactions((prev) => [transaction, ...prev]);
 
-    // Budget Alert Check!
+    setTransactions((prev) => [normalizedTransaction, ...prev]);
+
     if (settings.find((s) => s.key === "budget_alerts")?.value === "1") {
       try {
         await checkBudgetAlerts(
-          transaction,
+          normalizedTransaction,
           budgetGoals,
           transactions,
-          categories,
+          categories
         );
       } catch {
-        /* notification failures should not block transaction creation */
+        // ignore
       }
     }
   };
 
   const deleteTransaction = async (id: string) => {
     const tx = transactions.find((t) => t.id === id);
+
     if (tx) {
-      // Reverse the balance effect
       const account = accounts.find((a) => a.id === tx.account_id);
       if (account) {
         const delta = tx.type === "income" ? -tx.amount : tx.amount;
         const newBalance = account.balance + delta;
+
         await updateAccountBalance(account.id, newBalance);
+
         setAccounts((prev) =>
           prev.map((a) =>
-            a.id === account.id ? { ...a, balance: newBalance } : a,
-          ),
+            a.id === account.id ? { ...a, balance: newBalance } : a
+          )
         );
       }
     }
+
     await dbDeleteTransaction(id);
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
   const updateTransaction = async (tx: Transaction) => {
-    await dbUpdateTransaction(tx);
-    // Reload accounts from DB since the atomic update already adjusted balances
+    const normalizedTransaction = normalizeTransaction(tx);
+
+    await dbUpdateTransaction(normalizedTransaction);
+
     const updatedAccounts = await getAccounts();
     setAccounts(updatedAccounts);
-    setTransactions((prev) => prev.map((t) => (t.id === tx.id ? tx : t)));
+
+    setTransactions((prev) =>
+      prev.map((t) => (t.id === normalizedTransaction.id ? normalizedTransaction : t))
+    );
   };
 
   const addCategory = async (category: Category) => {
@@ -306,37 +322,34 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setCategories((prev) => [...prev, category]);
   };
 
-  /**
-   * Persists name and icon changes to a category and updates local state.
-   * Type and is_custom are immutable after creation — this function rejects
-   * updates that attempt to change them or target a built-in category, and
-   * only applies name/icon to state so local state cannot diverge from the DB.
-   */
   const updateCategory = async (category: Category) => {
     const existing = categories.find((c) => c.id === category.id);
+
     if (!existing) {
       throw new Error("Category not found.");
     }
-    // Built-in categories are read-only
+
     if (existing.is_custom !== 1) {
       throw new Error("Built-in categories cannot be edited.");
     }
+
     if (
       existing.type !== category.type ||
       existing.is_custom !== category.is_custom
     ) {
       throw new Error(
-        "Category type and is_custom cannot be changed after creation.",
+        "Category type and is_custom cannot be changed after creation."
       );
     }
+
     await dbUpdateCategory(category.id, category.name, category.icon);
-    // Only apply the mutable fields to state to stay in sync with the DB
+
     setCategories((prev) =>
       prev.map((c) =>
         c.id === category.id
           ? { ...c, name: category.name, icon: category.icon }
-          : c,
-      ),
+          : c
+      )
     );
   };
 
@@ -371,10 +384,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loginSync = async (
     email: string,
-    password: string,
+    password: string
   ): Promise<string | null> => {
     const error = await signInSupabase(email, password);
     if (error) return error;
+
     const user = await getSupabaseUser();
     setSyncUser(user);
     syncUserRef.current = user;
@@ -383,10 +397,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUpSync = async (
     email: string,
-    password: string,
+    password: string
   ): Promise<string | null> => {
     const error = await signUpSupabase(email, password);
     if (error) return error;
+
     const user = await getSupabaseUser();
     setSyncUser(user);
     syncUserRef.current = user;
@@ -402,7 +417,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const reloadAll = async () => {
     const [accs, txs] = await Promise.all([getAccounts(), getTransactions()]);
     setAccounts(accs);
-    setTransactions(txs);
+    setTransactions(txs.map(normalizeTransaction));
   };
 
   return (
@@ -453,7 +468,8 @@ export function useAppState() {
 
 export function useAppActions() {
   const context = useContext(AppActionsContext);
-  if (!context)
+  if (!context) {
     throw new Error("useAppActions must be used within AppProvider");
+  }
   return context;
 }

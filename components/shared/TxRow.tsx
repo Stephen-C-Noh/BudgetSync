@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
   Alert,
+  GestureResponderEvent,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -80,6 +81,15 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
     setEditAmountDigits(extractDigits(text));
   }
 
+  async function handleToggleStar(event: GestureResponderEvent) {
+    event.stopPropagation();
+
+    await updateTransaction({
+      ...tx,
+      starred: tx.starred ? 0 : 1,
+    });
+  }
+
   function handleLongPress() {
     Alert.alert(
       "Delete Transaction",
@@ -119,6 +129,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
       category_id: editCategoryId,
       note: editNote.trim() || undefined,
       date: editDate,
+      starred: tx.starred ?? 0,
     });
 
     setIsSaving(false);
@@ -137,21 +148,36 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
           <View style={styles.txIconBox}>
             <Text style={styles.txEmoji}>{category?.icon ?? "💳"}</Text>
           </View>
-          <View>
+          <View style={styles.txTextWrap}>
             <Text style={styles.txName}>
               {tx.note || category?.name || "Transaction"}
             </Text>
             <Text style={styles.txMeta}>{meta}</Text>
           </View>
         </View>
-        <Text
-          style={[
-            styles.txAmount,
-            tx.type === "expense" ? styles.expenseColor : styles.incomeColor,
-          ]}
-        >
-          {tx.type === "expense" ? "-" : "+"}${tx.amount.toFixed(2)}
-        </Text>
+
+        <View style={styles.txRight}>
+          <TouchableOpacity
+            onPress={handleToggleStar}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.starBtn}
+          >
+            <Ionicons
+              name={tx.starred ? "star" : "star-outline"}
+              size={18}
+              color={tx.starred ? colors.accent : colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          <Text
+            style={[
+              styles.txAmount,
+              tx.type === "expense" ? styles.expenseColor : styles.incomeColor,
+            ]}
+          >
+            {tx.type === "expense" ? "-" : "+"}${tx.amount.toFixed(2)}
+          </Text>
+        </View>
       </TouchableOpacity>
 
       <Modal
@@ -306,7 +332,23 @@ function createStyles(colors: Colors) {
       padding: 16,
       marginBottom: 10,
     },
-    txLeft: { flexDirection: "row", alignItems: "center" },
+    txLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+      marginRight: 12,
+    },
+    txTextWrap: {
+      flex: 1,
+    },
+    txRight: {
+      alignItems: "flex-end",
+      justifyContent: "center",
+      gap: 6,
+    },
+    starBtn: {
+      padding: 2,
+    },
     txIconBox: {
       width: 44,
       height: 44,

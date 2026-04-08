@@ -26,6 +26,7 @@ interface Transaction {
   date: string;
   created_at: string;
   synced: 0 | 1;
+  starred: 0 | 1; 
 }
 
 interface BudgetGoal {
@@ -52,3 +53,4 @@ interface Setting {
 export type {
   Account, BudgetGoal, Category, Setting, Transaction, UserProfile
 };
+

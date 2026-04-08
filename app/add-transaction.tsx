@@ -144,6 +144,7 @@ export default function AddTransactionScreen() {
       date: selectedDate,
       created_at: now,
       synced: 0,
+      starred: 0,
     });
 
     setIsSaving(false);
