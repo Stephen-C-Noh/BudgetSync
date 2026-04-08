@@ -10,7 +10,6 @@ import TxRow from "./TxRow";
 type Props = {
   transactions: Transaction[];
   categories: Category[];
-  currency?: string; //
 };
 
 export default function CalendarView({ transactions, categories }: Props) {

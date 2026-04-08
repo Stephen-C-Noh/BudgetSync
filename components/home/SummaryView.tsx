@@ -11,7 +11,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 type Props = {
   transactions: Transaction[];
   categories: Category[];
-  currency?: string; // ADDED: Currency prop
+  currency?: string;
 };
 
 export default function HomeSummaryView({ transactions, categories, currency = "CAD" }: Props) {
@@ -76,7 +76,6 @@ export default function HomeSummaryView({ transactions, categories, currency = "
             <Text style={styles.tileLabel}>Income</Text>
           </View>
           <Text style={styles.tileAmount}>
-            {/* Swapped $ for {currency} */}
             {currency} {income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
@@ -108,6 +107,7 @@ export default function HomeSummaryView({ transactions, categories, currency = "
               }}
               width={SCREEN_WIDTH - 40}
               height={200}
+              yAxisLabel={`${currency} `}
               yAxisSuffix=""
               chartConfig={chartConfig}
               style={styles.chart}
@@ -119,7 +119,6 @@ export default function HomeSummaryView({ transactions, categories, currency = "
             <View key={c.name} style={styles.catRow}>
               <View style={styles.catRowTop}>
                 <Text style={styles.catName}>{c.icon}  {c.name}</Text>
-                {/*  Swapped $ for {currency} */}
                 <Text style={styles.catAmount}>{currency} {c.total.toFixed(2)}</Text>
               </View>
               <View style={styles.progressBg}>

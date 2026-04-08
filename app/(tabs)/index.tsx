@@ -62,16 +62,16 @@ export default function TodayScreen() {
 
         {/* PASSED 'currency' to each view so they display the correct symbol */}
         {activeTab === "Daily" && (
-          <DailyView transactions={transactions} categories={categories} currency={currency} />
+          <DailyView transactions={transactions} categories={categories} />
         )}
         {activeTab === "Calendar" && (
-          <CalendarView transactions={transactions} categories={categories} currency={currency} />
+          <CalendarView transactions={transactions} categories={categories} />
         )}
         {activeTab === "Monthly" && (
-          <HomeMonthlyView accounts={accounts} transactions={transactions} categories={categories} currency={currency} />
+          <HomeMonthlyView accounts={accounts} transactions={transactions} categories={categories} />
         )}
         {activeTab === "Summary" && (
-          <HomeSummaryView transactions={transactions} categories={categories} currency={currency} />
+          <HomeSummaryView transactions={transactions} categories={categories} />
         )}
 
         <View style={{ height: 30 }} />
