@@ -12,499 +12,649 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
+
 const TOP_TABS = ["Overview", "Expenses", "Income"] as const;
 type TopTab = (typeof TOP_TABS)[number];
-// Generate last N months as { label, year, month } objects
+
 function getRecentMonths(count: number) {
- const result = [];
- const now = new Date();
- for (let i = 0; i < count; i++) {
-   const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-   result.push({
-     label: d.toLocaleDateString("en-US", {
-       month: "long",
-       year: "numeric",
-     }),
-     year: d.getFullYear(),
-     month: d.getMonth(),
-   });
- }
- return result;
+  const result = [];
+  const now = new Date();
+
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    result.push({
+      label: d.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+      year: d.getFullYear(),
+      month: d.getMonth(),
+    });
+  }
+
+  return result;
 }
-const MONTH_OPTIONS = getRecentMonths(3);
+
+const MONTH_OPTIONS = getRecentMonths(12);
+
 export default function StatsScreen() {
- const { transactions, categories, budgetGoals, isLoading } = useAppState();
- const { colors } = useTheme();
- const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
- const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
- const styles = useMemo(() => createStyles(colors), [colors]);
- const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
- // Filter transactions by selected month + tab type
- const txType =
-   activeTopTab === "Expenses"
-     ? "expense"
-     : activeTopTab === "Income"
-     ? "income"
-     : null;
- const filteredTxs = useMemo(() => {
-   return transactions.filter((tx) => {
-     const d = new Date(tx.date);
-     const matchMonth =
-       d.getFullYear() === selectedMonth.year &&
-       d.getMonth() === selectedMonth.month;
-     const matchType = txType ? tx.type === txType : true;
-     return matchMonth && matchType;
-   });
- }, [transactions, selectedMonth, txType]);
- // Total spending/income for selected period
- const totalAmount = useMemo(
-   () => filteredTxs.reduce((sum, tx) => sum + tx.amount, 0),
-   [filteredTxs]
- );
- // Category map
- const categoryMap = useMemo(
-   () => new Map(categories.map((c) => [c.id, c])),
-   [categories]
- );
- // Monthly budget total (sum of all monthly goals)
- const totalMonthlyBudget = useMemo(
-   () =>
-     budgetGoals
-       .filter((g) => g.period === "monthly")
-       .reduce((sum, g) => sum + g.limit_amount, 0),
-   [budgetGoals]
- );
- // Spending breakdown by category
- const breakdown = useMemo(() => {
-   const map: Record<string, number> = {};
-   for (const tx of filteredTxs) {
-     map[tx.category_id] = (map[tx.category_id] ?? 0) + tx.amount;
-   }
-   return Object.entries(map)
-     .sort((a, b) => b[1] - a[1])
-     .map(([catId, amount], i) => ({
-       label: categoryMap.get(catId)?.name ?? "Other",
-       amount,
-       color: colors.chartColors[i % colors.chartColors.length],
-     }));
- }, [filteredTxs, categoryMap, colors.chartColors]);
- const topCategory = breakdown[0]?.label ?? "—";
- // Weekly totals (W1=1-7, W2=8-14, W3=15-21, W4=22+)
- const weeklyTotals = useMemo(() => {
-   const weeks = [0, 0, 0, 0];
-   for (const tx of filteredTxs) {
-     const day = new Date(tx.date).getDate();
-     const weekIdx = Math.min(Math.floor((day - 1) / 7), 3);
-     weeks[weekIdx] += tx.amount;
-   }
-   return weeks;
- }, [filteredTxs]);
- const maxWeekly = Math.max(...weeklyTotals, 1);
- // Multi-segment donut chart
- const chart = useMemo(() => {
-   const radius = 72;
-   const strokeWidth = 16;
-   const size = 190;
-   const circumference = 2 * Math.PI * radius;
-   let accumulatedOffset = 0;
-   const segments = breakdown.map((item) => {
-     const fraction = totalAmount > 0 ? item.amount / totalAmount : 0;
-     const segmentLength = circumference * fraction;
-     const dashArray = `${segmentLength} ${circumference - segmentLength}`;
-     const dashOffset = -accumulatedOffset;
-     accumulatedOffset += segmentLength;
-     return {
-       ...item,
-       dashArray,
-       dashOffset,
-     };
-   });
-   return {
-     radius,
-     strokeWidth,
-     size,
-     circumference,
-     segments,
-   };
- }, [breakdown, totalAmount]);
- if (isLoading) {
-   return (
-<SafeAreaView style={styles.safeArea}>
-<ActivityIndicator style={{ flex: 1 }} color={colors.accent} />
-</SafeAreaView>
-   );
- }
- return (
-<SafeAreaView style={styles.safeArea}>
-<ScrollView
-       style={styles.container}
-       contentContainerStyle={styles.content}
-       showsVerticalScrollIndicator={false}
->
-<Text style={styles.headerTitle}>Stats</Text>
-       {/* Top tabs */}
-<View style={styles.topTabs}>
-         {TOP_TABS.map((tab) => {
-           const isActive = activeTopTab === tab;
-           return (
-<TouchableOpacity
-               key={tab}
-               style={styles.topTabButton}
-               onPress={() => setActiveTopTab(tab)}
-               activeOpacity={0.8}
->
-<Text
-                 style={[
-                   styles.topTabText,
-                   isActive && styles.topTabTextActive,
-                 ]}
->
-                 {tab}
-</Text>
-               {isActive && <View style={styles.topTabUnderline} />}
-</TouchableOpacity>
-           );
-         })}
-</View>
-       {/* Month chips */}
-<View style={styles.monthRow}>
-         {MONTH_OPTIONS.map((m, idx) => {
-           const isActive = idx === selectedMonthIdx;
-           return (
-<TouchableOpacity
-               key={m.label}
-               style={[styles.monthChip, isActive && styles.monthChipActive]}
-               onPress={() => setSelectedMonthIdx(idx)}
-               activeOpacity={0.8}
->
-<Text
-                 style={[
-                   styles.monthChipText,
-                   isActive && styles.monthChipTextActive,
-                 ]}
->
-                 {idx === 0 ? m.label : m.label.split(" ")[0]}
-</Text>
-               {isActive && (
-<Ionicons
-                   name="chevron-down"
-                   size={14}
-                   color={colors.textPrimary}
-                 />
-               )}
-</TouchableOpacity>
-           );
-         })}
-</View>
-       {/* Summary cards */}
-<View style={styles.summaryRow}>
-<View style={styles.summaryCard}>
-<Text style={styles.summaryLabel}>
-             {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
-</Text>
-<Text style={styles.summaryValue}>
-             $
-             {totalAmount.toLocaleString("en-US", {
-               minimumFractionDigits: 2,
-               maximumFractionDigits: 2,
-             })}
-</Text>
-</View>
-<View style={styles.summaryCard}>
-<Text style={styles.summaryLabel}>Monthly Budget</Text>
-           {totalMonthlyBudget > 0 ? (
-<>
-<Text style={styles.summaryValue}>
-                 $
-                 {totalMonthlyBudget.toLocaleString("en-US", {
-                   minimumFractionDigits: 2,
-                   maximumFractionDigits: 2,
-                 })}
-</Text>
-<View style={styles.progressTrack}>
-<View
-                   style={[
-                     styles.progressFill,
-                     {
-                       width: `${Math.min(
-                         (totalAmount / totalMonthlyBudget) * 100,
-                         100
-                       )}%` as any,
-                     },
-                   ]}
-                 />
-</View>
-</>
-           ) : (
-<Text style={styles.noBudgetText}>No goals set</Text>
-           )}
-</View>
-</View>
-       {/* Spending breakdown */}
-<View style={styles.card}>
-<Text style={styles.cardTitle}>
-           {activeTopTab === "Income"
-             ? "Income Breakdown"
-             : "Spending Breakdown"}
-</Text>
-         {breakdown.length === 0 ? (
-<Text style={styles.emptyText}>No data for this period.</Text>
-         ) : (
-<>
-<View style={styles.chartContainer}>
-<View style={styles.chartWrapper}>
-<Svg width={chart.size} height={chart.size}>
-<Circle
-                     stroke={colors.statsProgressTrack}
-                     fill="none"
-                     cx={chart.size / 2}
-                     cy={chart.size / 2}
-                     r={chart.radius}
-                     strokeWidth={chart.strokeWidth}
-                   />
-                   {chart.segments.map((segment) => (
-<Circle
-                       key={segment.label}
-                       stroke={segment.color}
-                       fill="none"
-                       cx={chart.size / 2}
-                       cy={chart.size / 2}
-                       r={chart.radius}
-                       strokeWidth={chart.strokeWidth}
-                       strokeDasharray={segment.dashArray}
-                       strokeDashoffset={segment.dashOffset}
-                       strokeLinecap="butt"
-                       rotation="-90"
-                       origin={`${chart.size / 2}, ${chart.size / 2}`}
-                     />
-                   ))}
-</Svg>
-<View style={styles.chartCenter}>
-<Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
-<Text
-                     style={styles.chartCenterValue}
-                     numberOfLines={1}
-                     adjustsFontSizeToFit
->
-                     {topCategory}
-</Text>
-</View>
-</View>
-</View>
-<View style={styles.legendList}>
-               {breakdown.map((item) => (
-<View key={item.label} style={styles.legendRow}>
-<View style={styles.legendLeft}>
-<View
-                       style={[
-                         styles.legendDot,
-                         { backgroundColor: item.color },
-                       ]}
-                     />
-<Text style={styles.legendText}>{item.label}</Text>
-</View>
-<Text style={styles.legendAmount}>
-                     $
-                     {item.amount.toLocaleString("en-US", {
-                       minimumFractionDigits: 2,
-                       maximumFractionDigits: 2,
-                     })}
-</Text>
-</View>
-               ))}
-</View>
-</>
-         )}
-</View>
-       {/* Weekly trends */}
-<View style={styles.card}>
-<View style={styles.weekHeader}>
-<Text style={styles.cardTitle}>Weekly Trends</Text>
-<Text style={styles.weekSubtext}>Last 4 Weeks</Text>
-</View>
-<View style={styles.weekChart}>
-           {weeklyTotals.map((val, i) => {
-             const barHeight =
-               maxWeekly > 0
-                 ? Math.max((val / maxWeekly) * 90, val > 0 ? 6 : 0)
-                 : 0;
-             return (
-<View key={i} style={styles.weekColumn}>
-<View style={[styles.bar, { height: barHeight }]} />
-<Text style={styles.weekLabel}>W{i + 1}</Text>
-</View>
-             );
-           })}
-</View>
-</View>
-</ScrollView>
-</SafeAreaView>
- );
+  const { transactions, categories, budgetGoals, isLoading } = useAppState();
+  const { colors } = useTheme();
+  const [activeTopTab, setActiveTopTab] = useState<TopTab>("Expenses");
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const selectedMonth = MONTH_OPTIONS[selectedMonthIdx];
+
+  const txType =
+    activeTopTab === "Expenses"
+      ? "expense"
+      : activeTopTab === "Income"
+      ? "income"
+      : null;
+
+  const filteredTxs = useMemo(() => {
+    return transactions.filter((tx) => {
+      const d = new Date(tx.date);
+      const matchMonth =
+        d.getFullYear() === selectedMonth.year &&
+        d.getMonth() === selectedMonth.month;
+      const matchType = txType ? tx.type === txType : true;
+      return matchMonth && matchType;
+    });
+  }, [transactions, selectedMonth, txType]);
+
+  const totalIncome = useMemo(
+    () =>
+      transactions
+        .filter((tx) => {
+          const d = new Date(tx.date);
+          return (
+            d.getFullYear() === selectedMonth.year &&
+            d.getMonth() === selectedMonth.month &&
+            tx.type === "income"
+          );
+        })
+        .reduce((sum, tx) => sum + tx.amount, 0),
+    [transactions, selectedMonth]
+  );
+
+  const totalExpenses = useMemo(
+    () =>
+      transactions
+        .filter((tx) => {
+          const d = new Date(tx.date);
+          return (
+            d.getFullYear() === selectedMonth.year &&
+            d.getMonth() === selectedMonth.month &&
+            tx.type === "expense"
+          );
+        })
+        .reduce((sum, tx) => sum + tx.amount, 0),
+    [transactions, selectedMonth]
+  );
+
+  const netCashflow = useMemo(
+    () => totalIncome - totalExpenses,
+    [totalIncome, totalExpenses]
+  );
+
+  const totalAmount = useMemo(
+    () => filteredTxs.reduce((sum, tx) => sum + tx.amount, 0),
+    [filteredTxs]
+  );
+
+  const categoryMap = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories]
+  );
+
+  const totalMonthlyBudget = useMemo(
+    () =>
+      budgetGoals
+        .filter((g) => g.period === "monthly")
+        .reduce((sum, g) => sum + g.limit_amount, 0),
+    [budgetGoals]
+  );
+
+  const breakdown = useMemo(() => {
+    const map: Record<string, number> = {};
+
+    for (const tx of filteredTxs) {
+      map[tx.category_id] = (map[tx.category_id] ?? 0) + tx.amount;
+    }
+
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([catId, amount], i) => ({
+        label: categoryMap.get(catId)?.name ?? "Other",
+        amount,
+        color: colors.chartColors[i % colors.chartColors.length],
+      }));
+  }, [filteredTxs, categoryMap, colors.chartColors]);
+
+  const topCategory = breakdown[0]?.label ?? "—";
+
+  const weeklyTotals = useMemo(() => {
+    const weeks = [0, 0, 0, 0];
+
+    for (const tx of filteredTxs) {
+      const day = new Date(tx.date).getDate();
+      const weekIdx = Math.min(Math.floor((day - 1) / 7), 3);
+      weeks[weekIdx] += tx.amount;
+    }
+
+    return weeks;
+  }, [filteredTxs]);
+
+  const maxWeekly = Math.max(...weeklyTotals, 1);
+
+  const chart = useMemo(() => {
+    const radius = 72;
+    const strokeWidth = 16;
+    const size = 190;
+    const circumference = 2 * Math.PI * radius;
+
+    let accumulatedOffset = 0;
+
+    const segments = breakdown.map((item) => {
+      const fraction = totalAmount > 0 ? item.amount / totalAmount : 0;
+      const segmentLength = circumference * fraction;
+      const dashArray = `${segmentLength} ${circumference - segmentLength}`;
+      const dashOffset = -accumulatedOffset;
+      accumulatedOffset += segmentLength;
+
+      return {
+        ...item,
+        dashArray,
+        dashOffset,
+      };
+    });
+
+    return {
+      radius,
+      strokeWidth,
+      size,
+      segments,
+    };
+  }, [breakdown, totalAmount]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator style={{ flex: 1 }} color={colors.accent} />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.headerTitle}>Stats</Text>
+
+        <View style={styles.topTabs}>
+          {TOP_TABS.map((tab) => {
+            const isActive = activeTopTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={styles.topTabButton}
+                onPress={() => setActiveTopTab(tab)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.topTabText,
+                    isActive && styles.topTabTextActive,
+                  ]}
+                >
+                  {tab}
+                </Text>
+                {isActive && <View style={styles.topTabUnderline} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.monthRow}
+        >
+          {MONTH_OPTIONS.map((m, idx) => {
+            const isActive = idx === selectedMonthIdx;
+            return (
+              <TouchableOpacity
+                key={m.label}
+                style={[styles.monthChip, isActive && styles.monthChipActive]}
+                onPress={() => setSelectedMonthIdx(idx)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.monthChipText,
+                    isActive && styles.monthChipTextActive,
+                  ]}
+                >
+                  {m.label}
+                </Text>
+                {isActive && (
+                  <Ionicons
+                    name="chevron-down"
+                    size={14}
+                    color={colors.textPrimary}
+                  />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {activeTopTab === "Overview" ? (
+          <View style={styles.overviewSection}>
+            <View style={styles.netCashflowCard}>
+              <Text style={styles.summaryLabel}>Net Cashflow</Text>
+              <Text
+                style={[
+                  styles.netCashflowValue,
+                  {
+                    color:
+                      netCashflow > 0
+                        ? colors.accent
+                        : netCashflow < 0
+                        ? "#ef4444"
+                        : colors.textPrimary,
+                  },
+                ]}
+              >
+                $
+                {netCashflow.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+              <Text style={styles.netCashflowSubtext}>
+                {netCashflow > 0
+                  ? "You earned more than you spent"
+                  : netCashflow < 0
+                  ? "You spent more than you earned"
+                  : "Income and expenses are balanced"}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Income</Text>
+                <Text style={styles.summaryValue}>
+                  $
+                  {totalIncome.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Expenses</Text>
+                <Text style={styles.summaryValue}>
+                  $
+                  {totalExpenses.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>
+                {activeTopTab === "Income" ? "Total Income" : "Total Spending"}
+              </Text>
+              <Text style={styles.summaryValue}>
+                $
+                {totalAmount.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+            </View>
+
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Monthly Budget</Text>
+              {totalMonthlyBudget > 0 ? (
+                <>
+                  <Text style={styles.summaryValue}>
+                    $
+                    {totalMonthlyBudget.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(
+                            ((activeTopTab === "Income"
+                              ? totalIncome
+                              : totalExpenses) /
+                              totalMonthlyBudget) *
+                              100,
+                            100
+                          )}%` as any,
+                        },
+                      ]}
+                    />
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.noBudgetText}>No goals set</Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            {activeTopTab === "Income"
+              ? "Income Breakdown"
+              : "Spending Breakdown"}
+          </Text>
+
+          {breakdown.length === 0 ? (
+            <Text style={styles.emptyText}>No data for this period.</Text>
+          ) : (
+            <>
+              <View style={styles.chartContainer}>
+                <View style={styles.chartWrapper}>
+                  <Svg width={chart.size} height={chart.size}>
+                    <Circle
+                      stroke={colors.statsProgressTrack}
+                      fill="none"
+                      cx={chart.size / 2}
+                      cy={chart.size / 2}
+                      r={chart.radius}
+                      strokeWidth={chart.strokeWidth}
+                    />
+
+                    {chart.segments.map((segment) => (
+                      <Circle
+                        key={segment.label}
+                        stroke={segment.color}
+                        fill="none"
+                        cx={chart.size / 2}
+                        cy={chart.size / 2}
+                        r={chart.radius}
+                        strokeWidth={chart.strokeWidth}
+                        strokeDasharray={segment.dashArray}
+                        strokeDashoffset={segment.dashOffset}
+                        strokeLinecap="butt"
+                        rotation="-90"
+                        origin={`${chart.size / 2}, ${chart.size / 2}`}
+                      />
+                    ))}
+                  </Svg>
+
+                  <View style={styles.chartCenter}>
+                    <Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
+                    <Text
+                      style={styles.chartCenterValue}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {topCategory}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.legendList}>
+                {breakdown.map((item) => (
+                  <View key={item.label} style={styles.legendRow}>
+                    <View style={styles.legendLeft}>
+                      <View
+                        style={[
+                          styles.legendDot,
+                          { backgroundColor: item.color },
+                        ]}
+                      />
+                      <Text style={styles.legendText}>{item.label}</Text>
+                    </View>
+                    <Text style={styles.legendAmount}>
+                      $
+                      {item.amount.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.weekHeader}>
+            <Text style={styles.cardTitle}>Weekly Trends</Text>
+            <Text style={styles.weekSubtext}>Last 4 Weeks</Text>
+          </View>
+          <View style={styles.weekChart}>
+            {weeklyTotals.map((val, i) => {
+              const barHeight =
+                maxWeekly > 0
+                  ? Math.max((val / maxWeekly) * 90, val > 0 ? 6 : 0)
+                  : 0;
+              return (
+                <View key={i} style={styles.weekColumn}>
+                  <View style={[styles.bar, { height: barHeight }]} />
+                  <Text style={styles.weekLabel}>W{i + 1}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
+
 function createStyles(colors: Colors) {
- return StyleSheet.create({
-   safeArea: { flex: 1, backgroundColor: colors.background },
-   container: { flex: 1, backgroundColor: colors.background },
-   content: { padding: 16, paddingBottom: 30 },
-   headerTitle: {
-     color: colors.textPrimary,
-     fontSize: 22,
-     fontWeight: "700",
-     marginBottom: 18,
-   },
-   topTabs: { flexDirection: "row", gap: 18, marginBottom: 16 },
-   topTabButton: { alignItems: "center", paddingBottom: 2 },
-   topTabText: {
-     color: colors.textSecondary,
-     fontSize: 14,
-     fontWeight: "500",
-   },
-   topTabTextActive: { color: colors.accent, fontWeight: "700" },
-   topTabUnderline: {
-     width: "100%",
-     height: 2,
-     marginTop: 6,
-     borderRadius: 999,
-     backgroundColor: colors.accent,
-   },
-   monthRow: {
-     flexDirection: "row",
-     flexWrap: "wrap",
-     gap: 8,
-     marginBottom: 18,
-   },
-   monthChip: {
-     flexDirection: "row",
-     alignItems: "center",
-     gap: 4,
-     paddingHorizontal: 12,
-     paddingVertical: 8,
-     borderRadius: 10,
-     backgroundColor: colors.statsChip,
-   },
-   monthChipActive: { backgroundColor: colors.accent },
-   monthChipText: {
-     color: colors.tabBarInactive,
-     fontSize: 12,
-     fontWeight: "600",
-   },
-   monthChipTextActive: { color: colors.textPrimary },
-   summaryRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
-   summaryCard: {
-     flex: 1,
-     padding: 14,
-     borderRadius: 16,
-     borderWidth: 1,
-     borderColor: colors.border,
-     backgroundColor: colors.surface,
-   },
-   summaryLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 8 },
-   summaryValue: {
-     color: colors.textPrimary,
-     fontSize: 22,
-     fontWeight: "700",
-     marginBottom: 8,
-   },
-   noBudgetText: { color: colors.textSecondary, fontSize: 13 },
-   progressTrack: {
-     height: 8,
-     marginTop: 8,
-     overflow: "hidden",
-     borderRadius: 999,
-     backgroundColor: colors.statsProgressTrack,
-   },
-   progressFill: {
-     height: "100%",
-     borderRadius: 999,
-     backgroundColor: colors.accent,
-   },
-   card: {
-     padding: 16,
-     marginBottom: 18,
-     borderRadius: 18,
-     borderWidth: 1,
-     borderColor: colors.border,
-     backgroundColor: colors.surface,
-   },
-   cardTitle: {
-     color: colors.textPrimary,
-     fontSize: 16,
-     fontWeight: "700",
-     marginBottom: 14,
-   },
-   emptyText: {
-     color: colors.textSecondary,
-     fontSize: 14,
-     textAlign: "center",
-     paddingVertical: 20,
-   },
-   chartContainer: {
-     alignItems: "center",
-     justifyContent: "center",
-     marginTop: 8,
-     marginBottom: 22,
-   },
-   chartWrapper: {
-     width: 190,
-     height: 190,
-     alignItems: "center",
-     justifyContent: "center",
-   },
-   chartCenter: {
-     position: "absolute",
-     width: 118,
-     alignItems: "center",
-     justifyContent: "center",
-   },
-   chartCenterLabel: {
-     color: colors.textSecondary,
-     fontSize: 9,
-     fontWeight: "700",
-     letterSpacing: 1.1,
-     marginBottom: 6,
-   },
-   chartCenterValue: {
-     maxWidth: 110,
-     color: colors.textPrimary,
-     fontSize: 14,
-     fontWeight: "700",
-     textAlign: "center",
-   },
-   legendList: { gap: 12 },
-   legendRow: {
-     flexDirection: "row",
-     justifyContent: "space-between",
-     alignItems: "center",
-   },
-   legendLeft: { flexDirection: "row", alignItems: "center" },
-   legendDot: { width: 8, height: 8, borderRadius: 999, marginRight: 10 },
-   legendText: { color: colors.tabBarInactive, fontSize: 14 },
-   legendAmount: {
-     color: colors.textPrimary,
-     fontSize: 14,
-     fontWeight: "600",
-   },
-   weekHeader: {
-     flexDirection: "row",
-     justifyContent: "space-between",
-     alignItems: "center",
-   },
-   weekSubtext: { color: colors.textSecondary, fontSize: 12 },
-   weekChart: {
-     flexDirection: "row",
-     justifyContent: "space-between",
-     alignItems: "flex-end",
-     height: 120,
-     marginTop: 10,
-     paddingHorizontal: 8,
-   },
-   weekColumn: { alignItems: "center" },
-   bar: {
-     width: 24,
-     borderRadius: 10,
-     marginBottom: 8,
-     backgroundColor: colors.accent,
-   },
-   weekLabel: { color: colors.tabBarInactive, fontSize: 12 },
- });
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 16, paddingBottom: 30 },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      fontWeight: "700",
+      marginBottom: 18,
+    },
+
+    topTabs: { flexDirection: "row", gap: 18, marginBottom: 16 },
+    topTabButton: { alignItems: "center", paddingBottom: 2 },
+    topTabText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "500",
+    },
+    topTabTextActive: { color: colors.accent, fontWeight: "700" },
+    topTabUnderline: {
+      width: "100%",
+      height: 2,
+      marginTop: 6,
+      borderRadius: 999,
+      backgroundColor: colors.accent,
+    },
+
+    monthRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 18,
+      paddingRight: 12,
+    },
+    monthChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: colors.statsChip,
+    },
+    monthChipActive: { backgroundColor: colors.accent },
+    monthChipText: {
+      color: colors.tabBarInactive,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    monthChipTextActive: { color: colors.textPrimary },
+
+    overviewSection: { marginBottom: 18, gap: 12 },
+    netCashflowCard: {
+      padding: 16,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    netCashflowValue: {
+      fontSize: 28,
+      fontWeight: "800",
+      marginBottom: 6,
+    },
+    netCashflowSubtext: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+
+    summaryRow: { flexDirection: "row", gap: 12, marginBottom: 18 },
+    summaryCard: {
+      flex: 1,
+      padding: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    summaryLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 8 },
+    summaryValue: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      fontWeight: "700",
+      marginBottom: 8,
+    },
+    noBudgetText: { color: colors.textSecondary, fontSize: 13 },
+    progressTrack: {
+      height: 8,
+      marginTop: 8,
+      overflow: "hidden",
+      borderRadius: 999,
+      backgroundColor: colors.statsProgressTrack,
+    },
+    progressFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: colors.accent,
+    },
+
+    card: {
+      padding: 16,
+      marginBottom: 18,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    cardTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+      marginBottom: 14,
+    },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      textAlign: "center",
+      paddingVertical: 20,
+    },
+
+    chartContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 8,
+      marginBottom: 22,
+    },
+    chartWrapper: {
+      width: 190,
+      height: 190,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    chartCenter: {
+      position: "absolute",
+      width: 118,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    chartCenterLabel: {
+      color: colors.textSecondary,
+      fontSize: 9,
+      fontWeight: "700",
+      letterSpacing: 1.1,
+      marginBottom: 6,
+    },
+    chartCenterValue: {
+      maxWidth: 110,
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+
+    legendList: { gap: 12 },
+    legendRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    legendLeft: { flexDirection: "row", alignItems: "center" },
+    legendDot: { width: 8, height: 8, borderRadius: 999, marginRight: 10 },
+    legendText: { color: colors.tabBarInactive, fontSize: 14 },
+    legendAmount: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+
+    weekHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    weekSubtext: { color: colors.textSecondary, fontSize: 12 },
+    weekChart: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      height: 120,
+      marginTop: 10,
+      paddingHorizontal: 8,
+    },
+    weekColumn: { alignItems: "center" },
+    bar: {
+      width: 24,
+      borderRadius: 10,
+      marginBottom: 8,
+      backgroundColor: colors.accent,
+    },
+    weekLabel: { color: colors.tabBarInactive, fontSize: 12 },
+  });
 }
