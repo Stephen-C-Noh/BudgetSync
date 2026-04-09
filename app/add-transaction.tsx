@@ -6,6 +6,19 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 /** Returns the earliest selectable date: January 1, 2000. */
 function getMinDate(): Date {
@@ -33,19 +46,6 @@ function extractDigits(text: string): string {
   const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
   return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
 }
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AddTransactionScreen() {
   const router = useRouter();

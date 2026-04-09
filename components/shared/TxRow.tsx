@@ -3,19 +3,6 @@ import { Colors, useTheme } from "@/context/ThemeContext";
 import { Category, Transaction } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
-
-function formatAmountFromDigits(digits: string): string {
-  const normalized = digits.replace(/\D/g, "");
-  const safeDigits = normalized === "" ? "0" : normalized;
-  const cents = parseInt(safeDigits, 10) || 0;
-  return (cents / 100).toFixed(2);
-}
-
-function extractDigits(text: string): string {
-  const onlyDigits = text.replace(/\D/g, "");
-  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
-  return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
-}
 import {
   Alert,
   KeyboardAvoidingView,
@@ -29,6 +16,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+function formatAmountFromDigits(digits: string): string {
+  const normalized = digits.replace(/\D/g, "");
+  const safeDigits = normalized === "" ? "0" : normalized;
+  const cents = parseInt(safeDigits, 10) || 0;
+  return (cents / 100).toFixed(2);
+}
+
+function extractDigits(text: string): string {
+  const onlyDigits = text.replace(/\D/g, "");
+  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
+  return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+}
 
 type Props = {
   tx: Transaction;
