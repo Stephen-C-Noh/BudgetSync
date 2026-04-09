@@ -22,12 +22,15 @@ import {
   updateAccountBalance,
   upsertSetting,
   upsertUserProfile,
+  wipeAllData,
 } from "@/lib/db";
 import {
   buildWeeklySummary,
   checkBudgetAlerts,
   scheduleLocalNotification,
 } from "@/lib/notifications";
+import { clearPIN } from "@/lib/auth";
+import { clearGeminiKey } from "@/lib/gemini";
 import {
   SyncUser,
   getSupabaseUser,
@@ -36,6 +39,7 @@ import {
   signInSupabase,
   signOutSupabase,
   signUpSupabase,
+  supabase,
 } from "@/lib/supabase";
 import {
   Account,
@@ -82,6 +86,7 @@ interface AppActionsType {
   loginSync: (email: string, password: string) => Promise<string | null>;
   signUpSync: (email: string, password: string) => Promise<string | null>;
   logoutSync: () => Promise<void>;
+  deleteUserData: () => Promise<void>;
   reloadAll: () => Promise<void>;
 }
 
@@ -357,6 +362,34 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     syncUserRef.current = null;
   };
 
+  const deleteUserData = async () => {
+    // Delete remote data if sync is connected
+    if (syncUserRef.current) {
+      try {
+        await supabase.from("transactions").delete().eq("user_id", syncUserRef.current.id);
+        await supabase.from("accounts").delete().eq("user_id", syncUserRef.current.id);
+      } catch { /* proceed even if remote delete fails */ }
+    }
+    // Sign out of Supabase (clears session from SecureStore)
+    try { await signOutSupabase(); } catch { /* proceed */ }
+    // Wipe local SQLite and re-seed default categories
+    await wipeAllData();
+    // Clear SecureStore keys
+    await clearPIN();
+    await clearGeminiKey();
+    // Reset in-memory state
+    setAccounts([]);
+    setTransactions([]);
+    setBudgetGoals([]);
+    setUserProfile(null);
+    setSettings([]);
+    setSyncUser(null);
+    syncUserRef.current = null;
+    const [freshCategories, freshProfile] = await Promise.all([getCategories(), getUserProfile()]);
+    setCategories(freshCategories);
+    setUserProfile(freshProfile);
+  };
+
   const reloadAll = async () => {
     const [accs, txs] = await Promise.all([getAccounts(), getTransactions()]);
     setAccounts(accs);
@@ -382,6 +415,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         loginSync,
         signUpSync,
         logoutSync,
+        deleteUserData,
         reloadAll,
       }}
     >

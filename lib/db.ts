@@ -456,3 +456,18 @@ export async function upsertSetting(key: string, value: string): Promise<void> {
     [key, value],
   );
 }
+
+export async function wipeAllData(): Promise<void> {
+  const database = await db;
+  await database.withTransactionAsync(async () => {
+    await database.execAsync(`
+      DELETE FROM transactions;
+      DELETE FROM budget_goals;
+      DELETE FROM accounts;
+      DELETE FROM categories;
+      DELETE FROM user_profile;
+      DELETE FROM settings;
+    `);
+  });
+  await initializeDatabase();
+}
