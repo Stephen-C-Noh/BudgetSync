@@ -601,7 +601,7 @@ export default function SettingsScreen() {
             <View>
               <Text style={styles.itemTitleText}>AI Financial Context</Text>
               <Text style={styles.itemSubText}>
-                Share spending summary with SyncBot via HTTPS
+                Share financial summary with Google Gemini via HTTPS
               </Text>
             </View>
             <Switch

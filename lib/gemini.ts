@@ -75,7 +75,10 @@ function buildSystemPrompt(
   const cutoff = new Date(now);
   cutoff.setDate(now.getDate() - 30);
 
-  const recent = transactions.filter((t) => new Date(t.date) >= cutoff);
+  const recent = transactions.filter((t) => {
+    const [y, m, d] = t.date.split("-").map(Number);
+    return new Date(y, m - 1, d) >= cutoff;
+  });
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
   const expenseByCategory = new Map<string, number>();
