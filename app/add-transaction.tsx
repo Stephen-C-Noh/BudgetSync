@@ -40,7 +40,7 @@ function formatAmountFromDigits(digits: string): string {
   return (cents / 100).toFixed(2);
 }
 
-/** Max digits allowed: 12 cents digits = $99,999,999.99, well within Number.MAX_SAFE_INTEGER. */
+/** Max digits allowed: 12 cents digits = $9,999,999,999.99, well within Number.MAX_SAFE_INTEGER. */
 const MAX_DIGITS = 12;
 
 /** Extracts only digits from the text input and returns a safe raw digit string. */
