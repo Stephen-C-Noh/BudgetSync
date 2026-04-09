@@ -2,25 +2,10 @@ import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { formatDate } from "@/lib/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useMemo, useState } from "react";
 
 /** Returns the earliest selectable date: January 1, 2000. */
 function getMinDate(): Date {
@@ -48,35 +33,55 @@ function extractDigits(text: string): string {
   const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
   return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
 }
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AddTransactionScreen() {
   const router = useRouter();
-  const { categories, accounts } = useAppState();
+  const { categories, accounts, userProfile } = useAppState();
   const { addTransaction } = useAppActions();
   const { colors } = useTheme();
 
+  const currency = userProfile?.currency || "CAD";
+
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amountDigits, setAmountDigits] = useState("0");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
-    null
-  );
+  const amount = useMemo(() => formatAmountFromDigits(amountDigits), [amountDigits]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+
+  useEffect(() => {
+    if (accounts.length === 0) {
+      setSelectedAccountId("");
+      return;
+    }
+    const exists = accounts.some((a) => a.id === selectedAccountId);
+    if (!exists) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const amount = useMemo(
-    () => formatAmountFromDigits(amountDigits),
-    [amountDigits]
-  );
+  function handleAmountChange(text: string) {
+    setAmountDigits(extractDigits(text));
+  }
 
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
-
-  const _d = new Date();
-  const todayStr = formatDate(_d);
-
-  const [selectedDate, setSelectedDate] = useState<string>(
-    dateParam ?? todayStr
-  );
+  const todayStr = formatDate(new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(dateParam ?? todayStr);
   const [showPicker, setShowPicker] = useState(false);
 
   const pickerDate = useMemo(() => {
@@ -85,16 +90,10 @@ export default function AddTransactionScreen() {
   }, [selectedDate]);
 
   const filteredCategories = categories.filter((c) => c.type === type);
-  const primaryAccount = accounts[0] ?? null;
 
   function handleTypeChange(newType: "expense" | "income") {
     setType(newType);
     setSelectedCategoryId(null);
-  }
-
-  function handleAmountChange(text: string) {
-    const digits = extractDigits(text);
-    setAmountDigits(digits);
   }
 
   function handleDateChange(_event: DateTimePickerEvent, date?: Date) {
@@ -106,46 +105,37 @@ export default function AddTransactionScreen() {
     }
   }
 
-  function handleIOSConfirm() {
-    setShowPicker(false);
-  }
-
   async function handleSave() {
     const parsed = parseFloat(amount);
-
     if (!parsed || parsed <= 0) {
       Alert.alert("Invalid Amount", "Please enter an amount greater than 0.");
       return;
     }
-
     if (!selectedCategoryId) {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
-
-    if (!primaryAccount) {
-      Alert.alert(
-        "No Account",
-        "No account found. Please add an account first."
-      );
+    if (accounts.length === 0) {
+      Alert.alert("No Account", "No account found. Please add an account first.");
+      return;
+    }
+    if (!selectedAccountId) {
+      Alert.alert("No Account", "Please select an account first.");
       return;
     }
 
     setIsSaving(true);
-    const now = new Date().toISOString();
-
     await addTransaction({
       id: Crypto.randomUUID(),
-      account_id: primaryAccount.id,
+      account_id: selectedAccountId,
       category_id: selectedCategoryId,
       type,
       amount: parsed,
       note: note.trim() || undefined,
       date: selectedDate,
-      created_at: now,
+      created_at: new Date().toISOString(),
       synced: 0,
     });
-
     setIsSaving(false);
     router.back();
   }
@@ -161,42 +151,24 @@ export default function AddTransactionScreen() {
           <View style={{ width: 22 }} />
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scroll}
-        >
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
           <View style={styles.toggle}>
             <TouchableOpacity
               style={[styles.toggleBtn, type === "expense" && styles.toggleActive]}
               onPress={() => handleTypeChange("expense")}
             >
-              <Text
-                style={[
-                  styles.toggleText,
-                  type === "expense" && styles.toggleTextActive,
-                ]}
-              >
-                Expense
-              </Text>
+              <Text style={[styles.toggleText, type === "expense" && styles.toggleTextActive]}>Expense</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.toggleBtn, type === "income" && styles.toggleActive]}
               onPress={() => handleTypeChange("income")}
             >
-              <Text
-                style={[
-                  styles.toggleText,
-                  type === "income" && styles.toggleTextActive,
-                ]}
-              >
-                Income
-              </Text>
+              <Text style={[styles.toggleText, type === "income" && styles.toggleTextActive]}>Income</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.amountRow}>
-            <Text style={styles.amountPrefix}>$</Text>
+            <Text style={styles.amountPrefix}>{currency}</Text>
             <TextInput
               style={styles.amountInput}
               value={amount}
@@ -211,19 +183,11 @@ export default function AddTransactionScreen() {
             {filteredCategories.map((cat) => (
               <TouchableOpacity
                 key={cat.id}
-                style={[
-                  styles.categoryPill,
-                  selectedCategoryId === cat.id && styles.categoryPillActive,
-                ]}
+                style={[styles.categoryPill, selectedCategoryId === cat.id && styles.categoryPillActive]}
                 onPress={() => setSelectedCategoryId(cat.id)}
               >
                 <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                <Text
-                  style={[
-                    styles.categoryText,
-                    selectedCategoryId === cat.id && styles.categoryTextActive,
-                  ]}
-                >
+                <Text style={[styles.categoryText, selectedCategoryId === cat.id && styles.categoryTextActive]}>
                   {cat.name}
                 </Text>
               </TouchableOpacity>
@@ -231,26 +195,13 @@ export default function AddTransactionScreen() {
           </View>
 
           <Text style={styles.fieldLabel}>DATE</Text>
-          <TouchableOpacity
-            style={styles.fieldRow}
-            onPress={() => setShowPicker(true)}
-          >
-            <Ionicons
-              name="calendar-outline"
-              size={18}
-              color={colors.accent}
-              style={{ marginRight: 10 }}
-            />
+          <TouchableOpacity style={styles.fieldRow} onPress={() => setShowPicker(true)}>
+            <Ionicons name="calendar-outline" size={18} color={colors.accent} style={{ marginRight: 10 }} />
             <Text style={styles.fieldValue}>{selectedDate}</Text>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={colors.textSecondary}
-              style={styles.fieldChevron}
-            />
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} style={styles.fieldChevron} />
           </TouchableOpacity>
 
-          {Platform.OS === "android" && showPicker && (
+          {showPicker && Platform.OS === "android" && (
             <DateTimePicker
               value={pickerDate}
               mode="date"
@@ -261,21 +212,13 @@ export default function AddTransactionScreen() {
             />
           )}
 
-          {Platform.OS === "ios" && (
-            <Modal
-              visible={showPicker}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowPicker(false)}
-            >
+          {showPicker && Platform.OS === "ios" && (
+            <Modal transparent animationType="fade" visible={showPicker} onRequestClose={() => setShowPicker(false)}>
               <View style={styles.modalOverlay}>
                 <View style={styles.modalSheet}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Select Date</Text>
-                    <TouchableOpacity
-                      onPress={handleIOSConfirm}
-                      style={styles.modalDoneBtn}
-                    >
+                    <TouchableOpacity onPress={() => setShowPicker(false)} style={styles.modalDoneBtn}>
                       <Text style={styles.modalDoneText}>Done</Text>
                     </TouchableOpacity>
                   </View>
@@ -294,50 +237,47 @@ export default function AddTransactionScreen() {
             </Modal>
           )}
 
-          <Text style={styles.fieldLabel}>
-            {type === "expense" ? "PAYMENT METHOD" : "ACCOUNT"}
-          </Text>
-          <View style={styles.fieldRow}>
-            <Ionicons
-              name="wallet-outline"
-              size={18}
-              color={colors.textSecondary}
-              style={{ marginRight: 10 }}
-            />
-            <Text style={styles.fieldValue}>
-              {primaryAccount
-                ? `${primaryAccount.name}${
-                    primaryAccount.last4 ? `  •••• ${primaryAccount.last4}` : ""
-                  }`
-                : "No account"}
-            </Text>
-          </View>
+          <Text style={styles.fieldLabel}>{type === "expense" ? "PAYMENT METHOD" : "ACCOUNT"}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, marginBottom: 24, paddingBottom: 4 }}
+          >
+            {accounts.map((acc) => {
+              const isSelected = selectedAccountId === acc.id;
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  onPress={() => setSelectedAccountId(acc.id)}
+                  style={[
+                    styles.categoryPill,
+                    isSelected && styles.categoryPillActive
+                  ]}
+                >
+                  <Ionicons
+                    name="wallet-outline"
+                    size={16}
+                    color={isSelected ? colors.accent : colors.textSecondary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.categoryText, isSelected && styles.categoryTextActive]}>
+                    {acc.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
           <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Add a note..."
-            placeholderTextColor={colors.textSecondary}
-            value={note}
-            onChangeText={setNote}
-            multiline
-          />
+          <TextInput style={styles.noteInput} placeholder="Add a note..." placeholderTextColor={colors.textSecondary} value={note} onChangeText={setNote} multiline />
 
-          <TouchableOpacity
-            style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
-            onPress={handleSave}
-            disabled={isSaving}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.saveBtnText}>
-              {isSaving ? "Saving..." : "Save Transaction →"}
-            </Text>
+          <TouchableOpacity style={[styles.saveBtn, isSaving && { opacity: 0.6 }]} onPress={handleSave} disabled={isSaving}>
+            <Text style={styles.saveBtnText}>{isSaving ? "Saving..." : "Save Transaction →"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
             <Text style={styles.backLinkText}>BACK</Text>
           </TouchableOpacity>
-
           <View style={{ height: 30 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -348,176 +288,39 @@ export default function AddTransactionScreen() {
 function createStyles(colors: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingVertical: 15,
-    },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 15 },
     backBtn: { padding: 4 },
-    headerTitle: {
-      color: colors.textPrimary,
-      fontSize: 18,
-      fontWeight: "700",
-    },
-
+    headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700" },
     scroll: { paddingHorizontal: 20, paddingTop: 8 },
-
-    toggle: {
-      flexDirection: "row",
-      backgroundColor: colors.surface,
-      borderRadius: 14,
-      padding: 4,
-      marginBottom: 32,
-      alignSelf: "center",
-      width: "70%",
-    },
-    toggleBtn: {
-      flex: 1,
-      paddingVertical: 10,
-      borderRadius: 10,
-      alignItems: "center",
-    },
+    toggle: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: 14, padding: 4, marginBottom: 32, alignSelf: "center", width: "70%" },
+    toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
     toggleActive: { backgroundColor: colors.accent },
-    toggleText: {
-      color: colors.textSecondary,
-      fontWeight: "600",
-      fontSize: 15,
-    },
+    toggleText: { color: colors.textSecondary, fontWeight: "600", fontSize: 15 },
     toggleTextActive: { color: colors.onAccent, fontWeight: "700" },
-
-    amountRow: {
-      flexDirection: "row",
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: 36,
-    },
-    amountPrefix: {
-      color: colors.accent,
-      fontSize: 36,
-      fontWeight: "700",
-      marginRight: 4,
-    },
-    amountInput: {
-      color: colors.accent,
-      fontSize: 48,
-      fontWeight: "800",
-      minWidth: 160,
-      textAlign: "center",
-    },
-
-    fieldLabel: {
-      color: colors.textSecondary,
-      fontSize: 11,
-      fontWeight: "800",
-      letterSpacing: 1,
-      marginBottom: 10,
-    },
-
-    categoryWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-      marginBottom: 28,
-    },
-    categoryPill: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 24,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    categoryPillActive: {
-      borderColor: colors.accent,
-      backgroundColor: colors.accentBg,
-    },
+    amountRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: 36 },
+    amountPrefix: { color: colors.accent, fontSize: 36, fontWeight: "700", marginRight: 4 },
+    amountInput: { color: colors.accent, fontSize: 48, fontWeight: "800", minWidth: 120, textAlign: "center" },
+    fieldLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginBottom: 10 },
+    categoryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 28 },
+    categoryPill: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
+    categoryPillActive: { borderColor: colors.accent, backgroundColor: colors.accentBg },
     categoryIcon: { fontSize: 16, marginRight: 6 },
-    categoryText: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      fontWeight: "500",
-    },
-    categoryTextActive: { color: colors.accent },
-
-    fieldRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 14,
-      padding: 16,
-      marginBottom: 24,
-    },
+    categoryText: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
+    categoryTextActive: { color: colors.accent, fontWeight: "700" },
+    fieldRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginBottom: 24 },
     fieldValue: { color: colors.textPrimary, fontSize: 15, flex: 1 },
     fieldChevron: { marginLeft: "auto" },
-
-    noteInput: {
-      backgroundColor: colors.surface,
-      borderRadius: 14,
-      padding: 16,
-      color: colors.textPrimary,
-      fontSize: 14,
-      minHeight: 80,
-      marginBottom: 32,
-      textAlignVertical: "top",
-    },
-
-    saveBtn: {
-      backgroundColor: colors.accent,
-      borderRadius: 16,
-      paddingVertical: 17,
-      alignItems: "center",
-      marginBottom: 16,
-    },
-    saveBtnText: {
-      color: colors.onAccent,
-      fontSize: 16,
-      fontWeight: "700",
-    },
-
+    noteInput: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, color: colors.textPrimary, fontSize: 14, minHeight: 80, marginBottom: 32, textAlignVertical: "top" },
+    saveBtn: { backgroundColor: colors.accent, borderRadius: 16, paddingVertical: 17, alignItems: "center", marginBottom: 16 },
+    saveBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
     backLink: { alignItems: "center", marginBottom: 8 },
-    backLinkText: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      fontWeight: "600",
-      letterSpacing: 1,
-    },
-
-    modalOverlay: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: colors.overlay,
-    },
-    modalSheet: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingBottom: 32,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    modalTitle: {
-      color: colors.textPrimary,
-      fontSize: 16,
-      fontWeight: "600",
-    },
+    backLinkText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600", letterSpacing: 1 },
+    modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: colors.overlay },
+    modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+    modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+    modalTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
     modalDoneBtn: { paddingVertical: 4, paddingHorizontal: 8 },
-    modalDoneText: {
-      color: colors.accent,
-      fontSize: 16,
-      fontWeight: "700",
-    },
+    modalDoneText: { color: colors.accent, fontSize: 16, fontWeight: "700" },
     iosPicker: { width: "100%" },
   });
 }

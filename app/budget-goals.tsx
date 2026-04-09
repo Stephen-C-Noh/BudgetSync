@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
+import EmptyState from "@/components/shared/EmptyState";
 import { useAppActions, useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
 import * as Crypto from "expo-crypto";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -34,10 +34,12 @@ const PERIODS: { key: BudgetGoal["period"]; label: string }[] = [
  */
 export default function BudgetGoalsScreen() {
   const router = useRouter();
-  const { budgetGoals, categories, transactions, isLoading } = useAppState();
+  const { budgetGoals, categories, transactions, isLoading, userProfile } = useAppState();
   const { deleteBudgetGoal, addBudgetGoal } = useAppActions();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const currency = userProfile?.currency ?? "CAD";
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -216,11 +218,7 @@ export default function BudgetGoalsScreen() {
   function handleDelete(id: string) {
     Alert.alert("Remove Goal", "Remove this budget goal?", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: () => deleteBudgetGoal(id),
-      },
+      { text: "Remove", style: "destructive", onPress: () => deleteBudgetGoal(id) },
     ]);
   }
 
@@ -272,10 +270,10 @@ export default function BudgetGoalsScreen() {
               </View>
               <View style={styles.summaryFooter}>
                 <Text style={styles.summaryMuted}>
-                  Spent: ${totalSpent.toLocaleString()}
+                  Spent: {currency} {totalSpent.toLocaleString()}
                 </Text>
                 <Text style={styles.summaryMuted}>
-                  Remaining: ${Math.max(totalBudget - totalSpent, 0).toLocaleString()}
+                  Remaining: {currency} {Math.max(totalBudget - totalSpent, 0).toLocaleString()}
                 </Text>
               </View>
             </>
@@ -293,9 +291,13 @@ export default function BudgetGoalsScreen() {
          */}
         <View style={styles.card}>
           {budgetGoals.length === 0 ? (
-            <View style={styles.emptyRow}>
-              <Text style={styles.emptyText}>No budget goals yet.</Text>
-            </View>
+            <EmptyState
+              icon="target"
+              title="No Budget Goals"
+              description="Set a monthly limit for your categories to stay on track."
+              buttonLabel="Add First Goal"
+              onPress={openModal}
+            />
           ) : (
             budgetGoals.map((goal, index) => {
               const cat = categoryMap.get(goal.category_id);
@@ -308,14 +310,11 @@ export default function BudgetGoalsScreen() {
                 ? Math.min((spent / goal.limit_amount) * 100, 100)
                 : 0;
               const isOver = spent > goal.limit_amount;
-
               return (
                 <View key={goal.id}>
                   <View style={styles.goalRow}>
                     <View style={styles.goalLeft}>
-                      <View style={styles.iconBox}>
-                        <Text style={styles.goalEmoji}>{cat?.icon ?? "📦"}</Text>
-                      </View>
+                      <View style={styles.iconBox}><Text style={styles.goalEmoji}>{cat?.icon ?? "📦"}</Text></View>
                       <View style={styles.goalInfo}>
                         <View style={styles.goalTitleRow}>
                           <Text style={styles.goalCategory}>
@@ -349,13 +348,11 @@ export default function BudgetGoalsScreen() {
                               />
                             </View>
                             <Text style={styles.goalAmounts}>
-                              $
-                              {spent.toLocaleString("en-US", {
+                              {currency} {spent.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}{" "}
-                              / $
-                              {goal.limit_amount.toLocaleString("en-US", {
+                              / {currency} {goal.limit_amount.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
@@ -364,8 +361,7 @@ export default function BudgetGoalsScreen() {
                         )}
                         {goal.period !== "monthly" && (
                           <Text style={styles.goalAmounts}>
-                            Limit: $
-                            {goal.limit_amount.toLocaleString("en-US", {
+                            Limit: {currency} {goal.limit_amount.toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
@@ -390,19 +386,22 @@ export default function BudgetGoalsScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={openModal}
-          activeOpacity={0.85}
-        >
-          <Ionicons
-            name="add-circle-outline"
-            size={20}
-            color={colors.onAccent}
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.addBtnText}>Add Budget Goal</Text>
-        </TouchableOpacity>
+        {/* Only show the Add button when goals exist — EmptyState handles the empty case. */}
+        {budgetGoals.length > 0 && (
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={openModal}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={colors.onAccent}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.addBtnText}>Add Budget Goal</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -557,12 +556,7 @@ export default function BudgetGoalsScreen() {
 function createStyles(colors: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    headerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: 15,
-    },
+    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 15 },
     headerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700" },
     scroll: { paddingHorizontal: 20 },
 
@@ -609,9 +603,6 @@ function createStyles(colors: Colors) {
       overflow: "hidden",
       marginBottom: 16,
     },
-
-    emptyRow: { padding: 20, alignItems: "center" },
-    emptyText: { color: colors.textSecondary, fontSize: 14 },
 
     goalRow: {
       flexDirection: "row",
@@ -669,15 +660,7 @@ function createStyles(colors: Colors) {
     goalBarFill: { height: "100%", borderRadius: 999 },
     goalAmounts: { color: colors.textSecondary, fontSize: 11 },
     divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
-
-    addBtn: {
-      backgroundColor: colors.accent,
-      borderRadius: 16,
-      paddingVertical: 16,
-      flexDirection: "row",
-      justifyContent: "center",
-      alignItems: "center",
-    },
+    addBtn: { backgroundColor: colors.accent, borderRadius: 16, paddingVertical: 16, flexDirection: "row", justifyContent: "center", alignItems: "center" },
     addBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
 
     // ─── Modal ────────────────────────────────────────────────────────────────

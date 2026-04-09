@@ -19,10 +19,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const TABS = ["Daily", "Calendar", "Monthly", "Summary"];
 
 export default function AccountsScreen() {
-  const { accounts, transactions, categories, isLoading } = useAppState();
+
+  const { accounts, transactions, categories, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState("Monthly");
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // Define dynamic currency
+  const currency = userProfile?.currency || "CAD";
 
   if (isLoading) {
     return (
@@ -54,16 +58,16 @@ export default function AccountsScreen() {
         </View>
 
         {activeTab === "Daily" && (
-          <DailyView transactions={transactions} categories={categories} />
+          <DailyView transactions={transactions} categories={categories} currency={currency} />
         )}
         {activeTab === "Calendar" && (
           <CalendarView transactions={transactions} categories={categories} />
         )}
         {activeTab === "Monthly" && (
-          <AccountsMonthlyView accounts={accounts} />
+          <AccountsMonthlyView accounts={accounts} currency={currency} />
         )}
         {activeTab === "Summary" && (
-          <AccountsSummaryView accounts={accounts} transactions={transactions} categories={categories} />
+          <AccountsSummaryView accounts={accounts} transactions={transactions} categories={categories} currency={currency} />
         )}
 
         <View style={{ height: 30 }} />

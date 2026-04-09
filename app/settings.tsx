@@ -2,6 +2,7 @@ import EditNameModal from "@/components/shared/EditNameModal";
 import { useAppActions, useAppState } from "@/context/AppContext";
 import { Colors, ThemeMode, useTheme } from "@/context/ThemeContext";
 import { ensureNotificationPermission } from "@/lib/notifications";
+import { updateSupabasePassword } from "@/lib/supabase";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
 import { useRouter } from "expo-router";
@@ -10,21 +11,29 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "KRW", "CAD", "AUD", "SGD", "HKD", "CNY"];
+const LANGUAGES = ["EN-US", "KO-KR", "JA-JP", "ZH-CN", "FR-FR", "ES-ES", "DE-DE"];
+
 interface MenuRowProps {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subTitle?: string;
+  onPress?: () => void;
   colors: Colors;
   styles: ReturnType<typeof createStyles>;
 }
@@ -50,6 +59,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const {
     userProfile,
+    syncUser,
     isLoading,
     settings,
     accounts,
@@ -62,6 +72,13 @@ export default function SettingsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isPassModalVisible, setIsPassModalVisible] = useState(false);
+  const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [isLangModalVisible, setIsLangModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const budgetAlerts =
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
@@ -261,6 +278,57 @@ export default function SettingsScreen() {
     await updateUserProfile({ ...userProfile, name });
   }
 
+  // NEW PASSWORD LOGIC
+  async function handleSavePassword() {
+    if (!syncUser) {
+      Alert.alert("Security", "Connect sync first to change password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert("Weak Password", "Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const errorMsg = await updateSupabasePassword(newPassword);
+      if (errorMsg) {
+        Alert.alert("Update Failed", errorMsg);
+      } else {
+        Alert.alert("Success", "Password updated successfully.");
+        closePassModal();
+      }
+    } catch {
+      Alert.alert("Update Failed", "Something went wrong. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function closePassModal() {
+    setIsPassModalVisible(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setIsSaving(false);
+  }
+
+  async function selectCurrency(currency: string) {
+    if (!userProfile) return;
+    await updateUserProfile({ ...userProfile, currency });
+    setIsCurrencyModalVisible(false);
+  }
+
+  async function selectLanguage(language: string) {
+    if (!userProfile) return;
+    await updateUserProfile({ ...userProfile, language });
+    setIsLangModalVisible(false);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <EditNameModal
@@ -269,6 +337,58 @@ export default function SettingsScreen() {
         onSave={handleSaveName}
         onClose={() => setIsEditModalVisible(false)}
       />
+
+      {/* Password Modal */}
+      <Modal visible={isPassModalVisible} transparent animationType="fade" onRequestClose={() => { if (!isSaving) closePassModal(); }}>
+        <KeyboardAvoidingView style={styles.passModalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Update Password</Text>
+
+            <View style={{ position: "relative" }}>
+              <TextInput
+                style={styles.textInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: "absolute", right: 15, top: 15 }}
+                onPress={() => setShowPassword((v) => !v)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ position: "relative" }}>
+              <TextInput
+                style={styles.textInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm Password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={{ position: "absolute", right: 15, top: 15 }}
+                onPress={() => setShowPassword((v) => !v)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={closePassModal} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSavePassword} disabled={isSaving} style={[styles.modalBtn, { backgroundColor: colors.accent }]}>
+                {isSaving ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Update</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -325,7 +445,8 @@ export default function SettingsScreen() {
           <MenuRow
             icon="cash-outline"
             title="Primary Currency"
-            subTitle={userProfile?.currency ?? "USD"}
+            subTitle={userProfile?.currency ?? "CAD"}
+            onPress={() => setIsCurrencyModalVisible(true)}
             colors={colors}
             styles={styles}
           />
@@ -334,6 +455,7 @@ export default function SettingsScreen() {
             icon="globe-outline"
             title="System Language"
             subTitle={userProfile?.language ?? "EN-US"}
+            onPress={() => setIsLangModalVisible(true)}
             colors={colors}
             styles={styles}
           />
@@ -450,7 +572,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>SECURITY</Text>
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => syncUser ? setIsPassModalVisible(true) : Alert.alert("Security", "Connect sync first to change password.")}>
           <MaterialCommunityIcons
             name="refresh"
             size={20}
@@ -472,6 +594,54 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ─── Currency Picker Modal ─── */}
+      <Modal visible={isCurrencyModalVisible} animationType="slide" transparent onRequestClose={() => setIsCurrencyModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Currency</Text>
+              <TouchableOpacity onPress={() => setIsCurrencyModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={CURRENCIES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectRow} onPress={() => selectCurrency(item)}>
+                  <Text style={[styles.selectText, item === (userProfile?.currency ?? "CAD") && { color: colors.accent, fontWeight: "700" }]}>{item}</Text>
+                  {item === (userProfile?.currency ?? "CAD") && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Language Picker Modal ─── */}
+      <Modal visible={isLangModalVisible} animationType="slide" transparent onRequestClose={() => setIsLangModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Language</Text>
+              <TouchableOpacity onPress={() => setIsLangModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={LANGUAGES}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectRow} onPress={() => selectLanguage(item)}>
+                  <Text style={[styles.selectText, item === (userProfile?.language ?? "EN-US") && { color: colors.accent, fontWeight: "700" }]}>{item}</Text>
+                  {item === (userProfile?.language ?? "EN-US") && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* ─── Period Picker Modal ─── */}
       <Modal
@@ -703,9 +873,9 @@ export default function SettingsScreen() {
   );
 }
 
-function MenuRow({ icon, title, subTitle, colors, styles }: MenuRowProps) {
+function MenuRow({ icon, title, subTitle, onPress, colors, styles }: MenuRowProps) {
   return (
-    <TouchableOpacity style={styles.menuItemRow}>
+    <TouchableOpacity style={styles.menuItemRow} onPress={onPress}>
       <View style={styles.menuLeft}>
         <View style={styles.iconBox}>
           <Ionicons name={icon} size={20} color={colors.accent} />
@@ -854,6 +1024,14 @@ function createStyles(colors: Colors) {
       fontSize: 12,
       marginTop: 2,
     },
+    // ─── Password modal ─────────────────────────────────────────────────────
+    passModalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center", alignItems: "center", padding: 20 },
+    modalContent: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: colors.border },
+    modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+    textInput: { backgroundColor: colors.background, color: colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
+    modalButtons: { flexDirection: "row", gap: 12, marginTop: 8 },
+    modalBtn: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center" },
+
     // ─── Picker modal ───────────────────────────────────────────────────────
     modalOverlay: {
       flex: 1,
@@ -997,6 +1175,19 @@ function createStyles(colors: Colors) {
       color: colors.textPrimary,
       fontWeight: "700",
       fontSize: 15,
+    },
+    selectRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 16,
+      paddingHorizontal: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    selectText: {
+      color: colors.textPrimary,
+      fontSize: 16,
     },
   });
 }

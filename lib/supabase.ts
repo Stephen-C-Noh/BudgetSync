@@ -1,6 +1,6 @@
-import * as SecureStore from "expo-secure-store";
-import { createClient } from "@supabase/supabase-js";
 import { Account, Transaction } from "@/lib/types";
+import { createClient } from "@supabase/supabase-js";
+import * as SecureStore from "expo-secure-store";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
@@ -78,6 +78,11 @@ export async function signUpSupabase(
   password: string
 ): Promise<string | null> {
   const { error } = await supabase.auth.signUp({ email, password });
+  return error?.message ?? null;
+}
+
+export async function updateSupabasePassword(newPassword: string): Promise<string | null> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
   return error?.message ?? null;
 }
 

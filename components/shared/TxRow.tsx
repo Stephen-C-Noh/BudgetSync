@@ -3,6 +3,19 @@ import { Colors, useTheme } from "@/context/ThemeContext";
 import { Category, Transaction } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
+
+function formatAmountFromDigits(digits: string): string {
+  const normalized = digits.replace(/\D/g, "");
+  const safeDigits = normalized === "" ? "0" : normalized;
+  const cents = parseInt(safeDigits, 10) || 0;
+  return (cents / 100).toFixed(2);
+}
+
+function extractDigits(text: string): string {
+  const onlyDigits = text.replace(/\D/g, "");
+  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
+  return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+}
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,50 +36,36 @@ type Props = {
   dateLabel?: string;
 };
 
-function formatAmountFromDigits(digits: string): string {
-  const normalized = digits.replace(/\D/g, "");
-  const safeDigits = normalized === "" ? "0" : normalized;
-  const cents = parseInt(safeDigits, 10) || 0;
-  return (cents / 100).toFixed(2);
-}
-
-function extractDigits(text: string): string {
-  const onlyDigits = text.replace(/\D/g, "");
-  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
-  return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
-}
-
 export default function TxRow({ tx, category, dateLabel }: Props) {
-  const { categories } = useAppState();
+  const { categories, accounts, userProfile } = useAppState();
   const { updateTransaction, deleteTransaction } = useAppActions();
   const { colors } = useTheme();
 
+  const currency = userProfile?.currency || "CAD";
+
   const [editVisible, setEditVisible] = useState(false);
   const [editType, setEditType] = useState<"expense" | "income">(tx.type);
-  const [editAmountDigits, setEditAmountDigits] = useState(
-    String(Math.round(tx.amount * 100))
-  );
+  const [editAmountDigits, setEditAmountDigits] = useState(String(Math.round(tx.amount * 100)));
+  const editAmount = useMemo(() => formatAmountFromDigits(editAmountDigits), [editAmountDigits]);
   const [editCategoryId, setEditCategoryId] = useState(tx.category_id);
+  const [editAccountId, setEditAccountId] = useState(tx.account_id);
   const [editNote, setEditNote] = useState(tx.note ?? "");
   const [editDate] = useState(tx.date);
   const [isSaving, setIsSaving] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const meta = dateLabel
-    ? `${dateLabel} · ${category?.name ?? "—"}`
-    : category?.name ?? "—";
-
+  const meta = dateLabel ? `${dateLabel} · ${category?.name ?? "—"}` : (category?.name ?? "—");
   const filteredCategories = categories.filter((c) => c.type === editType);
 
-  const editAmount = useMemo(
-    () => formatAmountFromDigits(editAmountDigits),
-    [editAmountDigits]
-  );
+  function handleEditAmountChange(text: string) {
+    setEditAmountDigits(extractDigits(text));
+  }
 
   function openEdit() {
     setEditType(tx.type);
     setEditAmountDigits(String(Math.round(tx.amount * 100)));
     setEditCategoryId(tx.category_id);
+    setEditAccountId(tx.account_id);
     setEditNote(tx.note ?? "");
     setEditVisible(true);
   }
@@ -76,16 +75,10 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
     setEditCategoryId("");
   }
 
-  function handleEditAmountChange(text: string) {
-    setEditAmountDigits(extractDigits(text));
-  }
-
   function handleLongPress() {
     Alert.alert(
       "Delete Transaction",
-      `Delete ${tx.type === "expense" ? "-" : "+"}$${tx.amount.toFixed(
-        2
-      )} · ${category?.name ?? "—"}?`,
+      `Delete ${tx.type === "expense" ? "-" : "+"}${currency} ${tx.amount.toFixed(2)} · ${category?.name ?? "—"}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -99,28 +92,30 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
 
   async function handleSave() {
     const parsed = parseFloat(editAmount);
-
     if (isNaN(parsed) || parsed <= 0) {
       Alert.alert("Invalid Amount", "Please enter an amount greater than 0.");
       return;
     }
-
     if (!editCategoryId) {
       Alert.alert("No Category", "Please select a category.");
       return;
     }
+    if (!editAccountId) {
+      Alert.alert("No Account", "Please select an account.");
+      return;
+    }
 
     setIsSaving(true);
-
     await updateTransaction({
       ...tx,
       type: editType,
       amount: parsed,
       category_id: editCategoryId,
+      account_id: editAccountId,
       note: editNote.trim() || undefined,
       date: editDate,
+      synced: 0,
     });
-
     setIsSaving(false);
     setEditVisible(false);
   }
@@ -138,19 +133,12 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
             <Text style={styles.txEmoji}>{category?.icon ?? "💳"}</Text>
           </View>
           <View>
-            <Text style={styles.txName}>
-              {tx.note || category?.name || "Transaction"}
-            </Text>
+            <Text style={styles.txName}>{tx.note || category?.name || "Transaction"}</Text>
             <Text style={styles.txMeta}>{meta}</Text>
           </View>
         </View>
-        <Text
-          style={[
-            styles.txAmount,
-            tx.type === "expense" ? styles.expenseColor : styles.incomeColor,
-          ]}
-        >
-          {tx.type === "expense" ? "-" : "+"}${tx.amount.toFixed(2)}
+        <Text style={[styles.txAmount, tx.type === "expense" ? styles.expenseColor : styles.incomeColor]}>
+          {tx.type === "expense" ? "-" : "+"}{currency} {tx.amount.toFixed(2)}
         </Text>
       </TouchableOpacity>
 
@@ -175,52 +163,32 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Transaction</Text>
               <TouchableOpacity onPress={() => setEditVisible(false)}>
-                <Ionicons
-                  name="close"
-                  size={22}
-                  color={colors.textSecondary}
-                />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.toggle}>
                 <TouchableOpacity
-                  style={[
-                    styles.toggleBtn,
-                    editType === "expense" && styles.toggleActive,
-                  ]}
+                  style={[styles.toggleBtn, editType === "expense" && styles.toggleActive]}
                   onPress={() => handleTypeChange("expense")}
                 >
-                  <Text
-                    style={[
-                      styles.toggleText,
-                      editType === "expense" && styles.toggleTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.toggleText, editType === "expense" && styles.toggleTextActive]}>
                     Expense
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[
-                    styles.toggleBtn,
-                    editType === "income" && styles.toggleActive,
-                  ]}
+                  style={[styles.toggleBtn, editType === "income" && styles.toggleActive]}
                   onPress={() => handleTypeChange("income")}
                 >
-                  <Text
-                    style={[
-                      styles.toggleText,
-                      editType === "income" && styles.toggleTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.toggleText, editType === "income" && styles.toggleTextActive]}>
                     Income
                   </Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.amountRow}>
-                <Text style={styles.amountPrefix}>$</Text>
+                <Text style={styles.amountPrefix}>{currency}</Text>
                 <TextInput
                   style={styles.amountInput}
                   value={editAmount}
@@ -235,33 +203,51 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 {filteredCategories.map((cat) => (
                   <TouchableOpacity
                     key={cat.id}
-                    style={[
-                      styles.categoryPill,
-                      editCategoryId === cat.id && styles.categoryPillActive,
-                    ]}
+                    style={[styles.categoryPill, editCategoryId === cat.id && styles.categoryPillActive]}
                     onPress={() => setEditCategoryId(cat.id)}
                   >
                     <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        editCategoryId === cat.id && styles.categoryTextActive,
-                      ]}
-                    >
+                    <Text style={[styles.categoryText, editCategoryId === cat.id && styles.categoryTextActive]}>
                       {cat.name}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
+              <Text style={styles.fieldLabel}>ACCOUNT</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, marginBottom: 24, paddingBottom: 4 }}
+              >
+                {accounts.map((acc) => {
+                  const isSelected = editAccountId === acc.id;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      onPress={() => setEditAccountId(acc.id)}
+                      style={[
+                        styles.categoryPill,
+                        isSelected && styles.categoryPillActive
+                      ]}
+                    >
+                      <Ionicons
+                        name="wallet-outline"
+                        size={16}
+                        color={isSelected ? colors.accent : colors.textSecondary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.categoryText, isSelected && styles.categoryTextActive]}>
+                        {acc.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
               <Text style={styles.fieldLabel}>DATE</Text>
               <View style={styles.fieldRow}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={18}
-                  color={colors.textSecondary}
-                  style={styles.calendarIcon}
-                />
+                <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} style={styles.calendarIcon} />
                 <Text style={styles.fieldValue}>{editDate}</Text>
               </View>
 
@@ -281,9 +267,7 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 disabled={isSaving}
                 activeOpacity={0.85}
               >
-                <Text style={styles.saveBtnText}>
-                  {isSaving ? "Saving..." : "Save Changes →"}
-                </Text>
+                <Text style={styles.saveBtnText}>{isSaving ? "Saving..." : "Save Changes →"}</Text>
               </TouchableOpacity>
 
               <View style={styles.bottomSpacer} />
@@ -352,11 +336,7 @@ function createStyles(colors: Colors) {
       paddingVertical: 12,
       marginBottom: 4,
     },
-    sheetTitle: {
-      color: colors.textPrimary,
-      fontSize: 18,
-      fontWeight: "700",
-    },
+    sheetTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700" },
 
     toggle: {
       flexDirection: "row",
@@ -367,18 +347,9 @@ function createStyles(colors: Colors) {
       alignSelf: "center",
       width: "70%",
     },
-    toggleBtn: {
-      flex: 1,
-      paddingVertical: 10,
-      borderRadius: 10,
-      alignItems: "center",
-    },
+    toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
     toggleActive: { backgroundColor: colors.accent },
-    toggleText: {
-      color: colors.textSecondary,
-      fontWeight: "600",
-      fontSize: 15,
-    },
+    toggleText: { color: colors.textSecondary, fontWeight: "600", fontSize: 15 },
     toggleTextActive: { color: colors.onAccent, fontWeight: "700" },
 
     amountRow: {
@@ -387,17 +358,12 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginBottom: 28,
     },
-    amountPrefix: {
-      color: colors.accent,
-      fontSize: 36,
-      fontWeight: "700",
-      marginRight: 4,
-    },
+    amountPrefix: { color: colors.accent, fontSize: 36, fontWeight: "700", marginRight: 4 },
     amountInput: {
       color: colors.accent,
       fontSize: 48,
       fontWeight: "800",
-      minWidth: 160,
+      minWidth: 120,
       textAlign: "center",
     },
 
@@ -408,12 +374,7 @@ function createStyles(colors: Colors) {
       letterSpacing: 1,
       marginBottom: 10,
     },
-    categoryWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-      marginBottom: 24,
-    },
+    categoryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 },
     categoryPill: {
       flexDirection: "row",
       alignItems: "center",
@@ -429,11 +390,7 @@ function createStyles(colors: Colors) {
       backgroundColor: colors.accentBg,
     },
     categoryIcon: { fontSize: 16, marginRight: 6 },
-    categoryText: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      fontWeight: "500",
-    },
+    categoryText: { color: colors.textSecondary, fontSize: 13, fontWeight: "500" },
     categoryTextActive: { color: colors.accent },
 
     fieldRow: {
@@ -464,11 +421,7 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginBottom: 8,
     },
-    saveBtnText: {
-      color: colors.onAccent,
-      fontSize: 16,
-      fontWeight: "700",
-    },
+    saveBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
 
     calendarIcon: { marginRight: 10 },
     bottomSpacer: { height: 20 },
