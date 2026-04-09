@@ -153,17 +153,27 @@ export default function StatsScreen() {
   /** Net cashflow for the selected month: positive = surplus, negative = deficit. */
   const netCashflow = totalIncome - totalExpense;
 
-  // Donut chart — show top category share
+  // Donut chart — multi-segment, one arc per category
   const chart = useMemo(() => {
     const radius = 72;
     const strokeWidth = 16;
     const size = 190;
     const circumference = 2 * Math.PI * radius;
-    const topAmount = breakdown[0]?.amount ?? 0;
-    const progress = totalAmount > 0 ? Math.min(topAmount / totalAmount, 1) : 0;
-    const strokeDashoffset = circumference - circumference * progress;
-    return { radius, strokeWidth, size, circumference, strokeDashoffset, color: breakdown[0]?.color ?? colors.accent };
-  }, [breakdown, totalAmount, colors.accent]);
+
+    let accumulatedOffset = 0;
+
+    const segments = breakdown.map((item) => {
+      const fraction = totalAmount > 0 ? item.amount / totalAmount : 0;
+      const segmentLength = circumference * fraction;
+      const dashArray = `${segmentLength} ${circumference - segmentLength}`;
+      const dashOffset = -accumulatedOffset;
+      accumulatedOffset += segmentLength;
+
+      return { ...item, dashArray, dashOffset };
+    });
+
+    return { radius, strokeWidth, size, segments };
+  }, [breakdown, totalAmount]);
 
   if (isLoading) {
     return (
@@ -365,19 +375,22 @@ export default function StatsScreen() {
                           r={chart.radius}
                           strokeWidth={chart.strokeWidth}
                         />
-                        <Circle
-                          stroke={chart.color}
-                          fill="none"
-                          cx={chart.size / 2}
-                          cy={chart.size / 2}
-                          r={chart.radius}
-                          strokeWidth={chart.strokeWidth}
-                          strokeDasharray={`${chart.circumference} ${chart.circumference}`}
-                          strokeDashoffset={chart.strokeDashoffset}
-                          strokeLinecap="round"
-                          rotation="-90"
-                          origin={`${chart.size / 2}, ${chart.size / 2}`}
-                        />
+                        {chart.segments.map((segment, i) => (
+                          <Circle
+                            key={`${segment.label}-${i}`}
+                            stroke={segment.color}
+                            fill="none"
+                            cx={chart.size / 2}
+                            cy={chart.size / 2}
+                            r={chart.radius}
+                            strokeWidth={chart.strokeWidth}
+                            strokeDasharray={segment.dashArray}
+                            strokeDashoffset={segment.dashOffset}
+                            strokeLinecap="butt"
+                            rotation="-90"
+                            origin={`${chart.size / 2}, ${chart.size / 2}`}
+                          />
+                        ))}
                       </Svg>
                       <View style={styles.chartCenter}>
                         <Text style={styles.chartCenterLabel}>TOP CATEGORY</Text>
@@ -389,8 +402,8 @@ export default function StatsScreen() {
                   </View>
 
                   <View style={styles.legendList}>
-                    {breakdown.map((item) => (
-                      <View key={item.label} style={styles.legendRow}>
+                    {breakdown.map((item, i) => (
+                      <View key={`${item.label}-${i}`} style={styles.legendRow}>
                         <View style={styles.legendLeft}>
                           <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                           <Text style={styles.legendText}>{item.label}</Text>
