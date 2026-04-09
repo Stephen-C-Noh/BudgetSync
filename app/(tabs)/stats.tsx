@@ -375,9 +375,9 @@ export default function StatsScreen() {
                           r={chart.radius}
                           strokeWidth={chart.strokeWidth}
                         />
-                        {chart.segments.map((segment) => (
+                        {chart.segments.map((segment, i) => (
                           <Circle
-                            key={segment.label}
+                            key={`${segment.label}-${i}`}
                             stroke={segment.color}
                             fill="none"
                             cx={chart.size / 2}
@@ -402,8 +402,8 @@ export default function StatsScreen() {
                   </View>
 
                   <View style={styles.legendList}>
-                    {breakdown.map((item) => (
-                      <View key={item.label} style={styles.legendRow}>
+                    {breakdown.map((item, i) => (
+                      <View key={`${item.label}-${i}`} style={styles.legendRow}>
                         <View style={styles.legendLeft}>
                           <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                           <Text style={styles.legendText}>{item.label}</Text>
