@@ -1,8 +1,9 @@
 import NavRow from "@/components/shared/NavRow";
+import TxRow from "@/components/shared/TxRow";
 import { useAppActions } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { MONTH_NAMES } from "@/lib/dateUtils";
-import { Account } from "@/lib/types";
+import { Account, Category, Transaction } from "@/lib/types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import React, { useMemo, useState } from "react";
@@ -60,10 +61,12 @@ const ACCOUNT_TYPES: { key: Account["type"]; label: string }[] = [
 
 type Props = {
   accounts: Account[];
+  transactions: Transaction[];
+  categories: Category[];
   currency?: string;
 };
 
-export default function AccountsMonthlyView({ accounts, currency = "CAD" }: Props) {
+export default function AccountsMonthlyView({ accounts, transactions, categories, currency = "CAD" }: Props) {
   const { addAccount, updateAccount, deleteAccount } = useAppActions();
   const { colors } = useTheme();
 
@@ -72,8 +75,26 @@ export default function AccountsMonthlyView({ accounts, currency = "CAD" }: Prop
   const accountTypeMeta = useMemo(() => ACCOUNT_TYPE_META(colors), [colors]);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
+  const accountTxMap = useMemo(() => {
+    const map = new Map<string, Transaction[]>();
+    for (const tx of transactions) {
+      const [y, m] = tx.date.split("-").map(Number);
+      if (y !== year || m - 1 !== month) continue;
+      const list = map.get(tx.account_id) ?? [];
+      list.push(tx);
+      map.set(tx.account_id, list);
+    }
+    for (const [id, list] of map) {
+      map.set(id, list.sort((a, b) => b.date.localeCompare(a.date)));
+    }
+    return map;
+  }, [transactions, year, month]);
 
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState<Account["type"]>("bank");
@@ -281,56 +302,82 @@ export default function AccountsMonthlyView({ accounts, currency = "CAD" }: Prop
           const typeKey = account.type === "cash" ? "bank" : account.type;
           const meta = accountTypeMeta[typeKey] ?? accountTypeMeta.bank;
           const isCredit = account.type === "credit_card";
+          const isExpanded = expandedAccountId === account.id;
+          const accountTxs = accountTxMap.get(account.id) ?? [];
+          const income = accountTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+          const expenses = accountTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
           return (
-            <TouchableOpacity
-              key={account.id}
-              style={styles.accountItem}
-              onPress={() => openEditSheet(account)}
-              activeOpacity={0.75}
-            >
-              <View style={styles.accountLeft}>
-                <View
-                  style={[styles.logoBox, { backgroundColor: meta.bgColor }]}
-                >
-                  <MaterialCommunityIcons
-                    name={meta.iconName as any}
-                    size={24}
-                    color={meta.iconColor}
-                  />
+            <View key={account.id} style={[styles.accountItem, isExpanded && styles.accountItemExpanded]}>
+              <TouchableOpacity
+                onPress={() => setExpandedAccountId(isExpanded ? null : account.id)}
+                onLongPress={() => openEditSheet(account)}
+                activeOpacity={0.75}
+                style={styles.accountCardRow}
+              >
+                <View style={styles.accountLeft}>
+                  <View
+                    style={[styles.logoBox, { backgroundColor: meta.bgColor }]}
+                  >
+                    <MaterialCommunityIcons
+                      name={meta.iconName as any}
+                      size={24}
+                      color={meta.iconColor}
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.accountName}>{account.name}</Text>
+                    <Text style={styles.accountSub}>
+                      {account.last4 ? `•••• ${account.last4}` : meta.label}
+                    </Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.accountName}>{account.name}</Text>
-                  <Text style={styles.accountSub}>
-                    {account.last4 ? `•••• ${account.last4}` : meta.label}
+                <View style={styles.accountRight}>
+                  <Text
+                    style={[
+                      styles.accountValue,
+                      isCredit && { color: colors.danger },
+                    ]}
+                  >
+                    {isCredit ? "-" : ""}{currency} {Math.abs(account.balance).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                  <Text
+                    style={isCredit ? styles.accountTagRed : styles.accountTagGreen}
+                  >
+                    {isCredit ? "Credit" : "Stable"}
                   </Text>
                 </View>
-              </View>
-              <View style={styles.accountRight}>
-                <Text
-                  style={[
-                    styles.accountValue,
-                    isCredit && { color: colors.danger },
-                  ]}
-                >
-                  {isCredit ? "-" : ""}{currency} {Math.abs(account.balance).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-                <Text
-                  style={isCredit ? styles.accountTagRed : styles.accountTagGreen}
-                >
-                  {isCredit ? "Credit" : "Stable"}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={colors.textDisabled}
-                style={styles.chevron}
-              />
-            </TouchableOpacity>
+                <Ionicons
+                  name={isExpanded ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={colors.textDisabled}
+                  style={styles.chevron}
+                />
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={styles.expandedSection}>
+                  <View style={styles.txSummaryRow}>
+                    <Text style={styles.txSummaryIncome}>
+                      +{currency} {income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                    <Text style={styles.txSummaryExpense}>
+                      -{currency} {expenses.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+                  {accountTxs.length === 0 ? (
+                    <Text style={styles.noTxText}>No transactions this month.</Text>
+                  ) : (
+                    accountTxs.map((tx) => (
+                      <TxRow key={tx.id} tx={tx} category={categoryMap.get(tx.category_id)} />
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
           );
         })
       )}
@@ -559,12 +606,47 @@ function createStyles(colors: Colors) {
     },
 
     accountItem: {
-      flexDirection: "row",
-      alignItems: "center",
       backgroundColor: colors.surface,
-      padding: 18,
       borderRadius: 20,
       marginBottom: 12,
+      overflow: "hidden",
+    },
+    accountItemExpanded: {
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    accountCardRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 18,
+    },
+    expandedSection: {
+      paddingHorizontal: 18,
+      paddingBottom: 12,
+    },
+    txSummaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginBottom: 4,
+    },
+    txSummaryIncome: {
+      color: colors.chartAssets,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    txSummaryExpense: {
+      color: colors.danger,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    noTxText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: "center",
+      paddingVertical: 12,
     },
     accountLeft: {
       flexDirection: "row",
