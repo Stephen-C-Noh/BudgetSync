@@ -123,6 +123,9 @@ export async function initializeDatabase() {
   await database.runAsync(
     "INSERT OR IGNORE INTO settings (key, value) VALUES ('last_digest_at', '')",
   );
+  await database.runAsync(
+    "INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_context_enabled', '1')",
+  );
 }
 
 // ─── Accounts ────────────────────────────────────────────────────────────────
