@@ -1,7 +1,5 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppState } from "@/context/AppContext";
-import { useTheme } from "@/context/ThemeContext";
-import { Colors } from "@/context/ThemeContext";
+import { Colors, useTheme } from "@/context/ThemeContext";
 import {
   GeminiTurn,
   getGeminiKey,
@@ -9,6 +7,7 @@ import {
   sendMessage,
   validateGeminiKey,
 } from "@/lib/gemini";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -36,8 +35,11 @@ const GREETING_CHIPS = ["Am I on budget?", "Where am I spending most?", "How to 
 const FOLLOW_UP_CHIPS = ["Tell me more", "Show breakdown", "Any tips?"];
 
 export default function AIChatScreen() {
-  const { transactions, categories } = useAppState();
+  // Pull userProfile to get the dynamic currency
+  const { transactions, categories, userProfile } = useAppState();
   const { colors } = useTheme();
+
+  const currency = userProfile?.currency || "CAD";
 
   // Key management
   const [keyChecked, setKeyChecked] = useState(false);
@@ -122,7 +124,8 @@ export default function AIChatScreen() {
         trimmed,
         geminiHistory.current,
         transactions,
-        categories
+        categories,
+        currency // Passed currency here
       );
       const botMsg: Message = {
         id: `b-${Date.now()}`,
@@ -168,70 +171,70 @@ export default function AIChatScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>SyncBot AI</Text>
-            <View style={styles.statusRow}>
-              <View style={[styles.statusDot, { backgroundColor: colors.textSecondary }]} />
-              <Text style={styles.statusText}>SETUP REQUIRED</Text>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>SyncBot AI</Text>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusDot, { backgroundColor: colors.textSecondary }]} />
+                <Text style={styles.statusText}>SETUP REQUIRED</Text>
+              </View>
             </View>
+            <Ionicons name="information-circle-outline" size={22} color={colors.textPrimary} />
           </View>
-          <Ionicons name="information-circle-outline" size={22} color={colors.textPrimary} />
-        </View>
 
-        <ScrollView
-          contentContainerStyle={styles.onboardingContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.onboardingCard}>
-            <View style={styles.onboardingIcon}>
-              <MaterialCommunityIcons name="robot-outline" size={36} color={colors.accent} />
-            </View>
-            <Text style={styles.onboardingTitle}>Connect SyncBot AI</Text>
-            <Text style={styles.onboardingBody}>
-              SyncBot uses Google Gemini to answer questions about your finances. Your API key is stored securely on this device and never shared.
-            </Text>
+          <ScrollView
+            contentContainerStyle={styles.onboardingContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.onboardingCard}>
+              <View style={styles.onboardingIcon}>
+                <MaterialCommunityIcons name="robot-outline" size={36} color={colors.accent} />
+              </View>
+              <Text style={styles.onboardingTitle}>Connect SyncBot AI</Text>
+              <Text style={styles.onboardingBody}>
+                SyncBot uses Google Gemini to answer questions about your finances. Your API key is stored securely on this device and never shared.
+              </Text>
 
-            <TouchableOpacity
-              style={styles.studioLink}
-              onPress={() => Linking.openURL("https://aistudio.google.com/apikey")}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="open-outline" size={14} color={colors.accent} style={{ marginRight: 6 }} />
-              <Text style={styles.studioLinkText}>Get a free key at Google AI Studio</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.keyLabel}>Gemini API Key</Text>
-            <TextInput
-              style={[styles.keyInput, keyError ? styles.keyInputError : null]}
-              placeholder="AIza..."
-              placeholderTextColor={colors.textPlaceholder}
-              value={keyInput}
-              onChangeText={(v) => {
-                setKeyInput(v);
-                setKeyError("");
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {keyError !== "" && (
-              <Text style={styles.keyErrorText}>{keyError}</Text>
-            )}
-
-            {isValidating ? (
-              <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
-            ) : (
               <TouchableOpacity
-                style={styles.connectButton}
-                onPress={handleValidateKey}
-                activeOpacity={0.85}
+                style={styles.studioLink}
+                onPress={() => Linking.openURL("https://aistudio.google.com/apikey")}
+                activeOpacity={0.7}
               >
-                <Text style={styles.connectButtonText}>Validate & Connect</Text>
+                <Ionicons name="open-outline" size={14} color={colors.accent} style={{ marginRight: 6 }} />
+                <Text style={styles.studioLinkText}>Get a free key at Google AI Studio</Text>
               </TouchableOpacity>
-            )}
-          </View>
-        </ScrollView>
+
+              <Text style={styles.keyLabel}>Gemini API Key</Text>
+              <TextInput
+                style={[styles.keyInput, keyError ? styles.keyInputError : null]}
+                placeholder="AIza..."
+                placeholderTextColor={colors.textPlaceholder}
+                value={keyInput}
+                onChangeText={(v) => {
+                  setKeyInput(v);
+                  setKeyError("");
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {keyError !== "" && (
+                <Text style={styles.keyErrorText}>{keyError}</Text>
+              )}
+
+              {isValidating ? (
+                <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
+              ) : (
+                <TouchableOpacity
+                  style={styles.connectButton}
+                  onPress={handleValidateKey}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.connectButtonText}>Validate & Connect</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
