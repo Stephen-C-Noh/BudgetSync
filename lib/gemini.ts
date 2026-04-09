@@ -1,4 +1,4 @@
-import { Category, Transaction } from "@/lib/types";
+import { Account, BudgetGoal, Category, Transaction } from "@/lib/types";
 import * as SecureStore from "expo-secure-store";
 
 const GEMINI_KEY_STORE = "budgetsync_gemini_key";
@@ -67,13 +67,18 @@ async function getModel(key: string): Promise<string> {
 function buildSystemPrompt(
   transactions: Transaction[],
   categories: Category[],
-  currency: string
+  accounts: Account[],
+  budgetGoals: BudgetGoal[],
+  currency: string,
 ): string {
   const now = new Date();
   const cutoff = new Date(now);
   cutoff.setDate(now.getDate() - 30);
 
-  const recent = transactions.filter((t) => new Date(t.date) >= cutoff);
+  const recent = transactions.filter((t) => {
+    const [y, m, d] = t.date.split("-").map(Number);
+    return new Date(y, m - 1, d) >= cutoff;
+  });
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
   const expenseByCategory = new Map<string, number>();
@@ -92,8 +97,56 @@ function buildSystemPrompt(
 
   const breakdown = Array.from(expenseByCategory.entries())
     .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
     .map(([cat, amt]) => `  - ${cat}: ${currency} ${amt.toFixed(2)}`)
     .join("\n");
+
+  // Net worth
+  let assets = 0;
+  let liabilities = 0;
+  for (const a of accounts) {
+    if (a.type === "credit_card") liabilities += Math.abs(a.balance);
+    else assets += a.balance;
+  }
+  const netWorth = assets - liabilities;
+
+  const netWorthSection = `
+Net worth:
+- Assets: ${currency} ${assets.toFixed(2)} (across ${accounts.filter((a) => a.type !== "credit_card").length} account(s))
+- Liabilities: ${currency} ${liabilities.toFixed(2)} (across ${accounts.filter((a) => a.type === "credit_card").length} card(s))
+- Net worth: ${currency} ${netWorth.toFixed(2)}`;
+
+  // Budget goal status
+  let goalSection = "";
+  if (budgetGoals.length > 0) {
+    const goalLines: string[] = [];
+    for (const goal of budgetGoals) {
+      const catName = categoryMap.get(goal.category_id) ?? "Unknown";
+      const periodTxs = transactions.filter((t) => {
+        if (t.type !== "expense" || t.category_id !== goal.category_id) return false;
+        const [y, m, d] = t.date.split("-").map(Number);
+        const txDate = new Date(y, m - 1, d);
+        if (goal.period === "monthly") {
+          return txDate.getFullYear() === now.getFullYear() && txDate.getMonth() === now.getMonth();
+        } else if (goal.period === "weekly") {
+          const dayOfWeek = now.getDay();
+          const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          const weekStart = new Date(now);
+          weekStart.setDate(now.getDate() - mondayOffset);
+          weekStart.setHours(0, 0, 0, 0);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 7);
+          return txDate >= weekStart && txDate < weekEnd;
+        } else {
+          return txDate.getFullYear() === now.getFullYear();
+        }
+      });
+      const spent = periodTxs.reduce((s, t) => s + t.amount, 0);
+      const pct = goal.limit_amount > 0 ? Math.round((spent / goal.limit_amount) * 100) : 0;
+      goalLines.push(`  - ${catName} (${goal.period}): ${currency} ${spent.toFixed(2)} / ${currency} ${goal.limit_amount.toFixed(2)} (${pct}%)`);
+    }
+    goalSection = `\nBudget goals:\n${goalLines.join("\n")}`;
+  }
 
   return `You are SyncBot, a friendly and concise personal finance assistant inside the BudgetSync app. Answer the user's questions using their financial data below. The user's preferred currency is ${currency}. ALWAYS format money values using ${currency}. Keep responses brief and actionable.
 
@@ -101,8 +154,13 @@ User's last 30 days:
 - Total income: ${currency} ${totalIncome.toFixed(2)}
 - Total expenses: ${currency} ${totalExpense.toFixed(2)}
 - Net: ${currency} ${(totalIncome - totalExpense).toFixed(2)}
-- Expense breakdown by category:
-${breakdown || "  (no expense data yet)"}`;
+- Top spending categories:
+${breakdown || "  (no expense data yet)"}
+${netWorthSection}${goalSection}`;
+}
+
+function buildGenericPrompt(currency: string): string {
+  return `You are SyncBot, a friendly and concise personal finance assistant inside the BudgetSync app. The user has disabled financial context sharing, so you do not have access to their data. Answer general personal finance questions helpfully. The user's preferred currency is ${currency}. ALWAYS format money values using ${currency}. Keep responses brief and actionable.`;
 }
 
 export async function sendMessage(
@@ -110,7 +168,10 @@ export async function sendMessage(
   history: GeminiTurn[],
   transactions: Transaction[],
   categories: Category[],
-  currency: string
+  accounts: Account[],
+  budgetGoals: BudgetGoal[],
+  currency: string,
+  contextEnabled: boolean,
 ): Promise<string> {
   const key = await getGeminiKey();
   if (!key) throw new Error("NO_KEY");
@@ -118,9 +179,13 @@ export async function sendMessage(
   const model = await getModel(key);
   const url = `${GEMINI_LIST_URL}/${model}:generateContent?key=${key}`;
 
+  const systemText = contextEnabled
+    ? buildSystemPrompt(transactions, categories, accounts, budgetGoals, currency)
+    : buildGenericPrompt(currency);
+
   const body = {
     system_instruction: {
-      parts: [{ text: buildSystemPrompt(transactions, categories, currency) }],
+      parts: [{ text: systemText }],
     },
     contents: [
       ...history,

@@ -87,6 +87,8 @@ export default function SettingsScreen() {
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
   const weeklyDigest =
     settings.find((s) => s.key === "weekly_digest")?.value === "1";
+  const aiContext =
+    settings.find((s) => s.key === "ai_context_enabled")?.value !== "0";
 
   // ─── CSV Export state ─────────────────────────────────────────────────────
   const now = new Date();
@@ -590,6 +592,21 @@ export default function SettingsScreen() {
             <Switch
               value={weeklyDigest}
               onValueChange={(val) => handleToggle("weekly_digest", val)}
+              trackColor={{ false: colors.border, true: colors.accent }}
+              thumbColor={colors.textPrimary}
+            />
+          </View>
+          <View style={styles.itemDivider} />
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.itemTitleText}>AI Financial Context</Text>
+              <Text style={styles.itemSubText}>
+                Share financial summary with Google Gemini via HTTPS
+              </Text>
+            </View>
+            <Switch
+              value={aiContext}
+              onValueChange={(val) => updateSetting("ai_context_enabled", val ? "1" : "0")}
               trackColor={{ false: colors.border, true: colors.accent }}
               thumbColor={colors.textPrimary}
             />

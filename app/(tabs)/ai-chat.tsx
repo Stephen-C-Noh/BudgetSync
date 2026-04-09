@@ -36,10 +36,11 @@ const FOLLOW_UP_CHIPS = ["Tell me more", "Show breakdown", "Any tips?"];
 
 export default function AIChatScreen() {
   // Pull userProfile to get the dynamic currency
-  const { transactions, categories, userProfile } = useAppState();
+  const { transactions, categories, userProfile, accounts, budgetGoals, settings } = useAppState();
   const { colors } = useTheme();
 
   const currency = userProfile?.currency || "CAD";
+  const contextEnabled = settings.find((s) => s.key === "ai_context_enabled")?.value !== "0";
 
   // Key management
   const [keyChecked, setKeyChecked] = useState(false);
@@ -125,7 +126,10 @@ export default function AIChatScreen() {
         geminiHistory.current,
         transactions,
         categories,
-        currency // Passed currency here
+        accounts,
+        budgetGoals,
+        currency,
+        contextEnabled,
       );
       const botMsg: Message = {
         id: `b-${Date.now()}`,
