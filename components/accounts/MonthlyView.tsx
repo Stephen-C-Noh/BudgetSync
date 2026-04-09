@@ -81,19 +81,24 @@ export default function AccountsMonthlyView({ accounts, transactions, categories
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
-  const accountTxMap = useMemo(() => {
-    const map = new Map<string, Transaction[]>();
+  const { accountTxMap, accountTotalsMap } = useMemo(() => {
+    const txMap = new Map<string, Transaction[]>();
+    const totalsMap = new Map<string, { income: number; expenses: number }>();
     for (const tx of transactions) {
       const [y, m] = tx.date.split("-").map(Number);
       if (y !== year || m - 1 !== month) continue;
-      const list = map.get(tx.account_id) ?? [];
+      const list = txMap.get(tx.account_id) ?? [];
       list.push(tx);
-      map.set(tx.account_id, list);
+      txMap.set(tx.account_id, list);
+      const totals = totalsMap.get(tx.account_id) ?? { income: 0, expenses: 0 };
+      if (tx.type === "income") totals.income += tx.amount;
+      else totals.expenses += tx.amount;
+      totalsMap.set(tx.account_id, totals);
     }
-    for (const [id, list] of map) {
-      map.set(id, list.sort((a, b) => b.date.localeCompare(a.date)));
+    for (const [id, list] of txMap) {
+      txMap.set(id, list.sort((a, b) => b.date.localeCompare(a.date)));
     }
-    return map;
+    return { accountTxMap: txMap, accountTotalsMap: totalsMap };
   }, [transactions, year, month]);
 
   const [accountName, setAccountName] = useState("");
@@ -304,8 +309,7 @@ export default function AccountsMonthlyView({ accounts, transactions, categories
           const isCredit = account.type === "credit_card";
           const isExpanded = expandedAccountId === account.id;
           const accountTxs = accountTxMap.get(account.id) ?? [];
-          const income = accountTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-          const expenses = accountTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+          const { income = 0, expenses = 0 } = accountTotalsMap.get(account.id) ?? {};
 
           return (
             <View key={account.id} style={[styles.accountItem, isExpanded && styles.accountItemExpanded]}>
@@ -336,18 +340,18 @@ export default function AccountsMonthlyView({ accounts, transactions, categories
                   <Text
                     style={[
                       styles.accountValue,
-                      isCredit && { color: colors.danger },
+                      (isCredit || account.balance < 0) && { color: colors.danger },
                     ]}
                   >
-                    {isCredit ? "-" : ""}{currency} {Math.abs(account.balance).toLocaleString("en-US", {
+                    {(isCredit || account.balance < 0) ? "-" : ""}{currency} {Math.abs(account.balance).toLocaleString("en-US", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
                   </Text>
                   <Text
-                    style={isCredit ? styles.accountTagRed : styles.accountTagGreen}
+                    style={isCredit || account.balance < 0 ? styles.accountTagRed : styles.accountTagGreen}
                   >
-                    {isCredit ? "Credit" : "Stable"}
+                    {isCredit ? "Credit" : account.balance < 0 ? "Overdrawn" : "Stable"}
                   </Text>
                 </View>
                 <Ionicons
@@ -609,7 +613,6 @@ function createStyles(colors: Colors) {
       backgroundColor: colors.surface,
       borderRadius: 20,
       marginBottom: 12,
-      overflow: "hidden",
     },
     accountItemExpanded: {
       borderWidth: 1,

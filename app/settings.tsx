@@ -66,7 +66,7 @@ export default function SettingsScreen() {
     categories,
     transactions,
   } = useAppState();
-  const { updateSetting, updateUserProfile } = useAppActions();
+  const { updateSetting, updateUserProfile, logoutSync, deleteUserData } = useAppActions();
 
   const { colors, colorScheme, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -79,6 +79,9 @@ export default function SettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const budgetAlerts =
     settings.find((s) => s.key === "budget_alerts")?.value === "1";
@@ -390,6 +393,65 @@ export default function SettingsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ─── Delete Account Modal ─── */}
+      <Modal
+        visible={isDeleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!isDeleting) { setIsDeleteModalVisible(false); setDeleteConfirmText(""); } }}
+      >
+        <KeyboardAvoidingView style={styles.passModalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delete Account</Text>
+            <Text style={[styles.itemSubText, { marginBottom: 16, textAlign: "center" }]}>
+              Type <Text style={{ color: colors.danger, fontWeight: "700" }}>DELETE</Text> to confirm. This cannot be undone.
+            </Text>
+            <TextInput
+              style={styles.textInput}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="Type DELETE"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="characters"
+              editable={!isDeleting}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={() => { setIsDeleteModalVisible(false); setDeleteConfirmText(""); }}
+                disabled={isDeleting}
+                style={[styles.modalBtn, { backgroundColor: colors.border }]}
+              >
+                <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  setIsDeleting(true);
+                  try {
+                    await deleteUserData();
+                    setIsDeleteModalVisible(false);
+                    router.replace("/onboarding");
+                  } catch {
+                    Alert.alert("Error", "Something went wrong. Please try again.");
+                  } finally {
+                    setIsDeleting(false);
+                    setDeleteConfirmText("");
+                  }
+                }}
+                disabled={deleteConfirmText !== "DELETE" || isDeleting}
+                style={[
+                  styles.modalBtn,
+                  { backgroundColor: colors.danger, opacity: deleteConfirmText !== "DELETE" || isDeleting ? 0.4 : 1 },
+                ]}
+              >
+                {isDeleting
+                  ? <ActivityIndicator size="small" color={colors.onAccent} />
+                  : <Text style={{ color: colors.onAccent, fontWeight: "700" }}>Delete</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <View style={styles.headerRow}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -581,7 +643,38 @@ export default function SettingsScreen() {
           />
           <Text style={styles.actionBtnText}>Change Password</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={async () => {
+            if (!syncUser) {
+              Alert.alert("Not Connected", "You are not signed in to sync.");
+              return;
+            }
+            await logoutSync();
+            router.replace("/(tabs)");
+          }}
+        >
+          <MaterialCommunityIcons
+            name="logout"
+            size={20}
+            color={colors.textPrimary}
+            style={{ marginRight: 10 }}
+          />
+          <Text style={styles.actionBtnText}>Log Out</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.deleteBtn]}
+          onPress={() =>
+            Alert.alert(
+              "Delete Account",
+              "This will permanently delete all your local data and sign you out. This cannot be undone.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Continue", style: "destructive", onPress: () => setIsDeleteModalVisible(true) },
+              ],
+            )
+          }
+        >
           <MaterialCommunityIcons
             name="delete-outline"
             size={20}
