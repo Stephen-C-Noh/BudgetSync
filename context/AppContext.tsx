@@ -365,14 +365,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const deleteUserData = async () => {
     // Delete remote data if sync is connected
     if (syncUserRef.current) {
-      try {
-        await supabase.from("transactions").delete().eq("user_id", syncUserRef.current.id);
-        await supabase.from("accounts").delete().eq("user_id", syncUserRef.current.id);
-      } catch { /* proceed even if remote delete fails */ }
+      const { error: txError } = await supabase.from("transactions").delete().eq("user_id", syncUserRef.current.id);
+      const { error: accError } = await supabase.from("accounts").delete().eq("user_id", syncUserRef.current.id);
+      // Proceed even if remote delete fails (offline or RLS) — local wipe still happens
+      if (txError) console.warn("Remote transaction delete failed:", txError.message);
+      if (accError) console.warn("Remote account delete failed:", accError.message);
     }
     // Sign out of Supabase (clears session from SecureStore)
     try { await signOutSupabase(); } catch { /* proceed */ }
-    // Wipe local SQLite and re-seed default categories
+    // Wipe local SQLite and re-seed defaults
     await wipeAllData();
     // Clear SecureStore keys
     await clearPIN();
@@ -382,12 +383,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setTransactions([]);
     setBudgetGoals([]);
     setUserProfile(null);
-    setSettings([]);
     setSyncUser(null);
     syncUserRef.current = null;
-    const [freshCategories, freshProfile] = await Promise.all([getCategories(), getUserProfile()]);
+    const [freshCategories, freshProfile, freshSettings] = await Promise.all([
+      getCategories(),
+      getUserProfile(),
+      getSettings(),
+    ]);
     setCategories(freshCategories);
     setUserProfile(freshProfile);
+    setSettings(freshSettings);
   };
 
   const reloadAll = async () => {
