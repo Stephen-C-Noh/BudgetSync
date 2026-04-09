@@ -20,6 +20,37 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+/** Returns the earliest selectable date: January 1, 2000. */
+function getMinDate(): Date {
+  return new Date(2000, 0, 1);
+}
+
+/** Returns the latest selectable date: today + 1 year. */
+function getMaxDate(): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d;
+}
+
+/** Converts a raw digit string into currency display, e.g. "123" -> "1.23". */
+function formatAmountFromDigits(digits: string): string {
+  const normalized = digits.replace(/\D/g, "");
+  const safeDigits = normalized === "" ? "0" : normalized;
+  const cents = parseInt(safeDigits, 10) || 0;
+  return (cents / 100).toFixed(2);
+}
+
+/** Max digits allowed: 12 cents digits = $9,999,999,999.99, well within Number.MAX_SAFE_INTEGER. */
+const MAX_DIGITS = 12;
+
+/** Extracts only digits from the text input and returns a safe raw digit string. */
+function extractDigits(text: string): string {
+  const onlyDigits = text.replace(/\D/g, "");
+  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
+  const result = trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+  return result.slice(0, MAX_DIGITS);
+}
+
 export default function AddTransactionScreen() {
   const router = useRouter();
   const { categories, accounts, userProfile } = useAppState();
@@ -29,7 +60,8 @@ export default function AddTransactionScreen() {
   const currency = userProfile?.currency || "CAD";
 
   const [type, setType] = useState<"expense" | "income">("expense");
-  const [amount, setAmount] = useState("0.00");
+  const [amountDigits, setAmountDigits] = useState("0");
+  const amount = useMemo(() => formatAmountFromDigits(amountDigits), [amountDigits]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
 
@@ -46,6 +78,10 @@ export default function AddTransactionScreen() {
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  function handleAmountChange(text: string) {
+    setAmountDigits(extractDigits(text));
+  }
 
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const todayStr = formatDate(new Date());
@@ -140,9 +176,9 @@ export default function AddTransactionScreen() {
             <TextInput
               style={styles.amountInput}
               value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              selectTextOnFocus
+              onChangeText={handleAmountChange}
+              keyboardType="number-pad"
+              selection={{ start: amount.length, end: amount.length }}
             />
           </View>
 
@@ -174,6 +210,8 @@ export default function AddTransactionScreen() {
               value={pickerDate}
               mode="date"
               display="default"
+              minimumDate={getMinDate()}
+              maximumDate={getMaxDate()}
               onChange={handleDateChange}
             />
           )}
@@ -192,8 +230,11 @@ export default function AddTransactionScreen() {
                     value={pickerDate}
                     mode="date"
                     display="spinner"
+                    minimumDate={getMinDate()}
+                    maximumDate={getMaxDate()}
                     onChange={handleDateChange}
                     style={styles.iosPicker}
+                    textColor={colors.textPrimary}
                   />
                 </View>
               </View>

@@ -17,6 +17,23 @@ import {
   View,
 } from "react-native";
 
+function formatAmountFromDigits(digits: string): string {
+  const normalized = digits.replace(/\D/g, "");
+  const safeDigits = normalized === "" ? "0" : normalized;
+  const cents = parseInt(safeDigits, 10) || 0;
+  return (cents / 100).toFixed(2);
+}
+
+/** Max digits allowed: 12 cents digits = $9,999,999,999.99, well within Number.MAX_SAFE_INTEGER. */
+const MAX_DIGITS = 12;
+
+function extractDigits(text: string): string {
+  const onlyDigits = text.replace(/\D/g, "");
+  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
+  const result = trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+  return result.slice(0, MAX_DIGITS);
+}
+
 type Props = {
   tx: Transaction;
   category?: Category;
@@ -32,7 +49,8 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
 
   const [editVisible, setEditVisible] = useState(false);
   const [editType, setEditType] = useState<"expense" | "income">(tx.type);
-  const [editAmount, setEditAmount] = useState(tx.amount.toFixed(2));
+  const [editAmountDigits, setEditAmountDigits] = useState(String(Math.round(tx.amount * 100)));
+  const editAmount = useMemo(() => formatAmountFromDigits(editAmountDigits), [editAmountDigits]);
   const [editCategoryId, setEditCategoryId] = useState(tx.category_id);
   const [editAccountId, setEditAccountId] = useState(tx.account_id);
   const [editNote, setEditNote] = useState(tx.note ?? "");
@@ -43,9 +61,13 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
   const meta = dateLabel ? `${dateLabel} · ${category?.name ?? "—"}` : (category?.name ?? "—");
   const filteredCategories = categories.filter((c) => c.type === editType);
 
+  function handleEditAmountChange(text: string) {
+    setEditAmountDigits(extractDigits(text));
+  }
+
   function openEdit() {
     setEditType(tx.type);
-    setEditAmount(tx.amount.toFixed(2));
+    setEditAmountDigits(String(Math.round(tx.amount * 100)));
     setEditCategoryId(tx.category_id);
     setEditAccountId(tx.account_id);
     setEditNote(tx.note ?? "");
@@ -174,9 +196,9 @@ export default function TxRow({ tx, category, dateLabel }: Props) {
                 <TextInput
                   style={styles.amountInput}
                   value={editAmount}
-                  onChangeText={setEditAmount}
-                  keyboardType="decimal-pad"
-                  selectTextOnFocus
+                  onChangeText={handleEditAmountChange}
+                  keyboardType="number-pad"
+                  selection={{ start: editAmount.length, end: editAmount.length }}
                 />
               </View>
 

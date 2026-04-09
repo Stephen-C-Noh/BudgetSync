@@ -26,12 +26,28 @@ const ACCOUNT_TYPES: { value: Account["type"]; label: string; icon: string }[] =
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "KRW", "CAD", "AUD"];
 
+function formatAmountFromDigits(digits: string): string {
+  const normalized = digits.replace(/\D/g, "");
+  const safeDigits = normalized === "" ? "0" : normalized;
+  const cents = parseInt(safeDigits, 10) || 0;
+  return (cents / 100).toFixed(2);
+}
+
+/** Max digits allowed: 12 cents digits = $9,999,999,999.99, well within Number.MAX_SAFE_INTEGER. */
+const MAX_DIGITS = 12;
+
+function extractDigits(text: string): string {
+  const onlyDigits = text.replace(/\D/g, "");
+  const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
+  const result = trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+  return result.slice(0, MAX_DIGITS);
+}
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { userProfile } = useAppState();
+  const { userProfile, accounts } = useAppState();
   const { updateUserProfile, addAccount, updateSetting } = useAppActions();
-  const { accounts } = useAppState();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [step, setStep] = useState(1);
@@ -43,8 +59,17 @@ export default function OnboardingScreen() {
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState<Account["type"]>("bank");
   const [last4, setLast4] = useState("");
-  const [balance, setBalance] = useState("");
-  const [currency, setCurrency] = useState(userProfile.currency ?? "CAD");
+  const [balanceDigits, setBalanceDigits] = useState("0");
+  const [currency, setCurrency] = useState(userProfile?.currency ?? "CAD");
+
+  const balance = useMemo(
+    () => formatAmountFromDigits(balanceDigits),
+    [balanceDigits]
+  );
+
+  function handleBalanceChange(text: string) {
+    setBalanceDigits(extractDigits(text));
+  }
 
   async function finishOnboarding() {
     if (accounts.length === 0) {
@@ -93,7 +118,6 @@ export default function OnboardingScreen() {
     router.replace("/(tabs)");
   }
 
-  // ── Step 1: Welcome ──────────────────────────────────────────────────────────
   if (step === 1) {
     return (
       <SafeAreaView style={styles.container}>
@@ -118,7 +142,6 @@ export default function OnboardingScreen() {
     );
   }
 
-  // ── Step 2: Set your name ────────────────────────────────────────────────────
   if (step === 2) {
     return (
       <SafeAreaView style={styles.container}>
@@ -166,7 +189,6 @@ export default function OnboardingScreen() {
     );
   }
 
-  // ── Step 3: Add first account ────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -225,9 +247,10 @@ export default function OnboardingScreen() {
               style={styles.input}
               placeholder="0.00"
               placeholderTextColor={colors.textPlaceholder}
-              keyboardType="decimal-pad"
+              keyboardType="number-pad"
               value={balance}
-              onChangeText={setBalance}
+              onChangeText={handleBalanceChange}
+              selection={{ start: balance.length, end: balance.length }}
             />
 
             <Text style={styles.label}>Last 4 Digits (optional)</Text>
@@ -328,14 +351,22 @@ function createStyles(colors: Colors) {
       alignItems: "center",
       marginTop: 12,
     },
-    primaryBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: "700" },
+    primaryBtnText: {
+      color: colors.onAccent,
+      fontSize: 16,
+      fontWeight: "700",
+    },
     skipBtn: {
       paddingVertical: 14,
       alignSelf: "stretch",
       alignItems: "center",
       marginTop: 4,
     },
-    skipBtnText: { color: colors.textSecondary, fontSize: 15, fontWeight: "500" },
+    skipBtnText: {
+      color: colors.textSecondary,
+      fontSize: 15,
+      fontWeight: "500",
+    },
     stepHeader: {
       paddingHorizontal: 24,
       paddingTop: 16,
@@ -416,7 +447,11 @@ function createStyles(colors: Colors) {
       borderColor: colors.accent,
     },
     chipIcon: { fontSize: 16 },
-    chipText: { color: colors.textSecondary, fontSize: 14, fontWeight: "600" },
+    chipText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
     chipTextActive: { color: colors.accent },
     currencyRow: {
       flexDirection: "row",
@@ -436,7 +471,11 @@ function createStyles(colors: Colors) {
       backgroundColor: colors.accentLight,
       borderColor: colors.accent,
     },
-    currencyChipText: { color: colors.textSecondary, fontSize: 14, fontWeight: "600" },
+    currencyChipText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
     currencyChipTextActive: { color: colors.accent },
   });
 }
