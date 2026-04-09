@@ -40,11 +40,15 @@ function formatAmountFromDigits(digits: string): string {
   return (cents / 100).toFixed(2);
 }
 
+/** Max digits allowed: 12 cents digits = $99,999,999.99, well within Number.MAX_SAFE_INTEGER. */
+const MAX_DIGITS = 12;
+
 /** Extracts only digits from the text input and returns a safe raw digit string. */
 function extractDigits(text: string): string {
   const onlyDigits = text.replace(/\D/g, "");
   const trimmedLeadingZeros = onlyDigits.replace(/^0+(?=\d)/, "");
-  return trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+  const result = trimmedLeadingZeros === "" ? "0" : trimmedLeadingZeros;
+  return result.slice(0, MAX_DIGITS);
 }
 
 export default function AddTransactionScreen() {
