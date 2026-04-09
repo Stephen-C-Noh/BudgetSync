@@ -1,7 +1,5 @@
 import AccountsMonthlyView from "@/components/accounts/MonthlyView";
 import AccountsSummaryView from "@/components/accounts/SummaryView";
-import CalendarView from "@/components/shared/CalendarView";
-import DailyView from "@/components/shared/DailyView";
 import { useAppState } from "@/context/AppContext";
 import { Colors, useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,13 +14,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const TABS = ["Daily", "Calendar", "Monthly", "Summary"];
+const TABS = ["Monthly", "Summary"];
 
 export default function AccountsScreen() {
 
   const { accounts, transactions, categories, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState("Monthly");
+  const [activeTab, setActiveTab] = useState<"Monthly" | "Summary">("Monthly");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // Define dynamic currency
@@ -50,21 +48,15 @@ export default function AccountsScreen() {
 
         <View style={styles.tabsRow}>
           {TABS.map((tab) => (
-            <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tab}>
+            <TouchableOpacity key={tab} onPress={() => setActiveTab(tab as "Monthly" | "Summary")} style={styles.tab}>
               <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
               {activeTab === tab && <View style={styles.activeIndicator} />}
             </TouchableOpacity>
           ))}
         </View>
 
-        {activeTab === "Daily" && (
-          <DailyView transactions={transactions} categories={categories} currency={currency} />
-        )}
-        {activeTab === "Calendar" && (
-          <CalendarView transactions={transactions} categories={categories} />
-        )}
         {activeTab === "Monthly" && (
-          <AccountsMonthlyView accounts={accounts} currency={currency} />
+          <AccountsMonthlyView accounts={accounts} transactions={transactions} categories={categories} currency={currency} />
         )}
         {activeTab === "Summary" && (
           <AccountsSummaryView accounts={accounts} transactions={transactions} categories={categories} currency={currency} />
