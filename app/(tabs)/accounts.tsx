@@ -14,13 +14,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const TABS = ["Monthly", "Summary"];
+const TABS = ["Monthly", "Summary"] as const;
+type Tab = typeof TABS[number];
 
 export default function AccountsScreen() {
 
   const { accounts, transactions, categories, isLoading, userProfile } = useAppState();
   const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<"Monthly" | "Summary">("Monthly");
+  const [activeTab, setActiveTab] = useState<Tab>("Monthly");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // Define dynamic currency
@@ -48,7 +49,7 @@ export default function AccountsScreen() {
 
         <View style={styles.tabsRow}>
           {TABS.map((tab) => (
-            <TouchableOpacity key={tab} onPress={() => setActiveTab(tab as "Monthly" | "Summary")} style={styles.tab}>
+            <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tab}>
               <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
               {activeTab === tab && <View style={styles.activeIndicator} />}
             </TouchableOpacity>
